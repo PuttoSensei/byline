@@ -1,0 +1,58 @@
+{
+  "challenge": "zGGNrodpjwRfd2Qxy2HEVFN",
+  "domain": "https://verifier.test",
+  "holderDid": "did:key:zDnaeaxJR4G2tzG52XANDHBJNkyTjTMdebvtZDv8Hc62keNHM",
+  "issuerDid": "did:key:zDnaecyqpXQYG8cK3QUCXpH4pQBTB7mPPb8zVKe2mjHJtwogT",
+  "presentation": {
+    "@context": ["https://www.w3.org/ns/credentials/v2"],
+    "type": ["VerifiablePresentation"],
+    "holder": "did:key:zDnaeaxJR4G2tzG52XANDHBJNkyTjTMdebvtZDv8Hc62keNHM",
+    "verifiableCredential": [
+      {
+        "@context": ["https://www.w3.org/ns/credentials/v2"],
+        "type": ["VerifiableCredential", "BylineCorrespondentCredential"],
+        "issuer": "did:key:zDnaecyqpXQYG8cK3QUCXpH4pQBTB7mPPb8zVKe2mjHJtwogT",
+        "validFrom": "2026-08-02T02:46:25Z",
+        "credentialSubject": {
+          "id": "did:key:zDnaeaxJR4G2tzG52XANDHBJNkyTjTMdebvtZDv8Hc62keNHM",
+          "name": "Nib",
+          "handle": "nib",
+          "role": "correspondent",
+          "policy": "always_allow",
+          "harness": "Claude Code",
+          "masthead": "My Community"
+        },
+        "proof": {
+          "@context": ["https://www.w3.org/ns/credentials/v2"],
+          "type": "DataIntegrityProof",
+          "cryptosuite": "ecdsa-jcs-2019",
+          "created": "2026-08-02T02:46:25Z",
+          "verificationMethod": "did:key:zDnaecyqpXQYG8cK3QUCXpH4pQBTB7mPPb8zVKe2mjHJtwogT#zDnaecyqpXQYG8cK3QUCXpH4pQBTB7mPPb8zVKe2mjHJtwogT",
+          "proofPurpose": "assertionMethod",
+          "proofValue": "z2k3RHBH1qDFxbLqFjvba7b7LGXE82k1YJgp5awektAha1FRcUqsdaSTCxKvbRJtqAegFfW6tZJHjevnadSpGHHaz"
+        }
+      }
+    ],
+    "proof": {
+      "@context": ["https://www.w3.org/ns/credentials/v2"],
+      "type": "DataIntegrityProof",
+      "cryptosuite": "ecdsa-jcs-2019",
+      "created": "2026-08-02T02:46:25Z",
+      "verificationMethod": "did:key:zDnaeaxJR4G2tzG52XANDHBJNkyTjTMdebvtZDv8Hc62keNHM#zDnaeaxJR4G2tzG52XANDHBJNkyTjTMdebvtZDv8Hc62keNHM",
+      "proofPurpose": "authentication",
+      "challenge": "zGGNrodpjwRfd2Qxy2HEVFN",
+      "domain": "https://verifier.test",
+      "proofValue": "z63ZUE3eJAdLk4c2jN8krZGqarjGeaWf1KNiB5Tt9DhHSqN5VZgi9bRgkXphkWmAh5oYCj8jUV9jXiLfCPL9Uu3QE"
+    }
+  },
+  "jwt": "eyJhbGciOiJFUzI1NiIsInR5cCI6InZjK2p3dCIsImtpZCI6ImRpZDprZXk6ekRuYWVjeXFwWFFZRzhjSzNRVUNYcEg0cFFCVEI3bVBQYjh6VktlMm1qSEp0d29nVCN6RG5hZWN5cXBYUVlHOGNLM1FVQ1hwSDRwUUJUQjdtUFBiOHpWS2UybWpISnR3b2dUIn0.eyJAY29udGV4dCI6WyJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiXSwidHlwZSI6WyJWZXJpZmlhYmxlQ3JlZGVudGlhbCIsIkJ5bGluZUNvcnJlc3BvbmRlbnRDcmVkZW50aWFsIl0sImlzc3VlciI6ImRpZDprZXk6ekRuYWVjeXFwWFFZRzhjSzNRVUNYcEg0cFFCVEI3bVBQYjh6VktlMm1qSEp0d29nVCIsInZhbGlkRnJvbSI6IjIwMjYtMDgtMDJUMDI6NDY6MjVaIiwiY3JlZGVudGlhbFN1YmplY3QiOnsiaWQiOiJkaWQ6a2V5OnpEbmFlYXhKUjRHMnR6RzUyWEFOREhCSk5reVRqVE1kZWJ2dFpEdjhIYzYya2VOSE0iLCJuYW1lIjoiTmliIiwiaGFuZGxlIjoibmliIiwicm9sZSI6ImNvcnJlc3BvbmRlbnQiLCJwb2xpY3kiOiJhbHdheXNfYWxsb3ciLCJoYXJuZXNzIjoiQ2xhdWRlIENvZGUiLCJtYXN0aGVhZCI6Ik15IENvbW11bml0eSJ9fQ.8_bosTsXzCG-ew5ViBVG9P7P2tDreLHpl0tPYqdqSKVvLbjD0FMu0gfGQI_npJSDTPm_Hgt1pihJp8kfGE-XLg",
+  "sdCombined": "eyJhbGciOiJFUzI1NiIsInR5cCI6InZjK2p3dCIsImtpZCI6ImRpZDprZXk6ekRuYWVjeXFwWFFZRzhjSzNRVUNYcEg0cFFCVEI3bVBQYjh6VktlMm1qSEp0d29nVCN6RG5hZWN5cXBYUVlHOGNLM1FVQ1hwSDRwUUJUQjdtUFBiOHpWS2UybWpISnR3b2dUIn0.eyJAY29udGV4dCI6WyJodHRwczovL3d3dy53My5vcmcvbnMvY3JlZGVudGlhbHMvdjIiXSwidHlwZSI6WyJWZXJpZmlhYmxlQ3JlZGVudGlhbCIsIkJ5bGluZUNvcnJlc3BvbmRlbnRDcmVkZW50aWFsIl0sImlzc3VlciI6ImRpZDprZXk6ekRuYWVjeXFwWFFZRzhjSzNRVUNYcEg0cFFCVEI3bVBQYjh6VktlMm1qSEp0d29nVCIsInZhbGlkRnJvbSI6IjIwMjYtMDgtMDJUMDI6NDY6MjVaIiwiY3JlZGVudGlhbFN1YmplY3QiOnsiaWQiOiJkaWQ6a2V5OnpEbmFlYXhKUjRHMnR6RzUyWEFOREhCSk5reVRqVE1kZWJ2dFpEdjhIYzYya2VOSE0iLCJfc2QiOlsiRlNJSDdCZ21mOHVxelNvZFNSNl94TzZSbW1za09aZG0yYUtXV2ZCbXZnZyIsIlJHUGZXNlBJclhaTFhiWDdxaXFuTUdYT21fMXpLYmdHc2ZTSXBqR1EzWXMiLCJXVDh0THp0QUZ1VUdvbDNRWW55NlJFamtCQ0VhMnY0X3IzU1dKQzJaWlJRIiwiV24yTllXZTFRa0pGUGw3NUtMMzZwbWs0VTF6ZjQtNDV6Z1BEbDdjcWM1ayIsIm5LV3Nvdjlmb2F6SnlwMVlPZXRuVDdMRk1SaUlBcUQtNEQ2TjliLU50enciLCJvSmkwTFpibm5yQ1VGZDF5RERXaERJYUNtbmRtdHk0LVAzU21oU2pUOUcwIl19fQ.-mWvdbW79wADWVKTsgmxtckylZDAxaz90OG03rx89G4PHcwutgpD3ZOhht4lKdAhbaaug0xabBs0ckRe-t21cg~WyJ6QUhtMU1YSzN6ZEJkeG9kUHQ5RFROQyIsIm5hbWUiLCJOaWIiXQ~",
+  "allDisclosures": [
+    "WyJ6QUhtMU1YSzN6ZEJkeG9kUHQ5RFROQyIsIm5hbWUiLCJOaWIiXQ",
+    "WyJ6WHlaMUhCZk1Rc3NHaHFBS2NVcmpMTCIsImhhbmRsZSIsIm5pYiJd",
+    "WyJ6RTI2OFl4emZKbU02TEJ1dVBIUFdLUCIsInJvbGUiLCJjb3JyZXNwb25kZW50Il0",
+    "WyJ6SHF4cmN4dmFQQWlDajU1UXZSNDFOWCIsInBvbGljeSIsImFsd2F5c19hbGxvdyJd",
+    "WyJ6VE1nYVBXSlhTRW1Fc0xENk1FZGh4NSIsImhhcm5lc3MiLCJDbGF1ZGUgQ29kZSJd",
+    "WyJ6RktIZFRycXdnR1BjNUR4OFV2QnpLTiIsIm1hc3RoZWFkIiwiTXkgQ29tbXVuaXR5Il0"
+  ]
+}

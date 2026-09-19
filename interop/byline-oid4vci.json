@@ -1,0 +1,53 @@
+{
+ "issuerMetadata": {
+  "credential_issuer": "https://byline.invalid/issuers/zDnaeaQMfFWsRKSJGW739eBzhbpsnGVH3LePm6uR6Wyb7jHLj",
+  "credential_endpoint": "https://byline.invalid/issuers/zDnaeaQMfFWsRKSJGW739eBzhbpsnGVH3LePm6uR6Wyb7jHLj/credential",
+  "nonce_endpoint": "https://byline.invalid/issuers/zDnaeaQMfFWsRKSJGW739eBzhbpsnGVH3LePm6uR6Wyb7jHLj/nonce",
+  "display": [{"name": "Test Masthead", "locale": "en"}],
+  "credential_configurations_supported": {
+   "byline-delegation": {
+    "format": "ldp_vc",
+    "credential_definition": {"@context": ["https://www.w3.org/ns/credentials/v2"], "type": ["VerifiableCredential", "BylineDelegationCredential"]},
+    "cryptographic_binding_methods_supported": ["did:key"],
+    "credential_signing_alg_values_supported": ["ecdsa-jcs-2019", "ecdsa-rdfc-2019"],
+    "proof_types_supported": {"jwt": {"proof_signing_alg_values_supported": ["ES256"]}},
+    "credential_metadata": {"display": [{"name": "Byline delegation", "locale": "en", "description": "What a correspondent may do on this masthead, and until when"}]}
+   }
+  }
+ },
+ "authorizationServerMetadata": {
+  "issuer": "https://byline.invalid/issuers/zDnaeaQMfFWsRKSJGW739eBzhbpsnGVH3LePm6uR6Wyb7jHLj",
+  "token_endpoint": "https://byline.invalid/issuers/zDnaeaQMfFWsRKSJGW739eBzhbpsnGVH3LePm6uR6Wyb7jHLj/token",
+  "grant_types_supported": ["urn:ietf:params:oauth:grant-type:pre-authorized_code"],
+  "pre-authorized_grant_anonymous_access_supported": true,
+  "token_endpoint_auth_methods_supported": ["none"],
+  "response_types_supported": []
+ },
+ "offer": {
+  "credential_issuer": "https://byline.invalid/issuers/zDnaeaQMfFWsRKSJGW739eBzhbpsnGVH3LePm6uR6Wyb7jHLj",
+  "credential_configuration_ids": ["byline-delegation"],
+  "grants": {"urn:ietf:params:oauth:grant-type:pre-authorized_code": {"pre-authorized_code": "z6qRGJYmUqiDtB7wuc4BXCx"}}
+ },
+ "offerUrl": "openid-credential-offer://?credential_offer=%7B%22credential_issuer%22%3A%22https%3A%2F%2Fbyline.invalid%2Fissuers%2FzDnaeaQMfFWsRKSJGW739eBzhbpsnGVH3LePm6uR6Wyb7jHLj%22%2C%22credential_configuration_ids%22%3A%5B%22byline-delegation%22%5D%2C%22grants%22%3A%7B%22urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Apre-authorized_code%22%3A%7B%22pre-authorized_code%22%3A%22z6qRGJYmUqiDtB7wuc4BXCx%22%7D%7D%7D",
+ "tokenRequest": "grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Apre-authorized_code&pre-authorized_code=z6qRGJYmUqiDtB7wuc4BXCx",
+ "tokenResponse": {"access_token": "zCjbM9NN7P4wDuHu98NxZyV", "token_type": "Bearer", "expires_in": 300, "c_nonce": "zED3X88nJYVtBufn4pay3FG", "c_nonce_expires_in": 300},
+ "credentialRequest": {
+  "credential_configuration_id": "byline-delegation",
+  "proofs": {"jwt": ["eyJhbGciOiJFUzI1NiIsInR5cCI6Im9wZW5pZDR2Y2ktcHJvb2Yrand0Iiwia2lkIjoiZGlkOmtleTp6RG5hZWJMN0JEU0ZvNlhIOVQ3QU5VV1A4RGVIcDRXQnNNRkR6TmJNTm9kN2p1eHlqI3pEbmFlYkw3QkRTRm82WEg5VDdBTlVXUDhEZUhwNFdCc01GRHpOYk1Ob2Q3anV4eWoifQ.eyJhdWQiOiJodHRwczovL2J5bGluZS5pbnZhbGlkL2lzc3VlcnMvekRuYWVhUU1mRldzUktTSkdXNzM5ZUJ6aGJwc25HVkgzTGVQbTZ1UjZXeWI3akhMaiIsImlhdCI6MTc4ODY4MTk1Nywibm9uY2UiOiJ6RUQzWDg4bkpZVnRCdWZuNHBheTNGRyJ9.gNFDbTTtwm_ktaG7gxaVj6IP3S-vtgf__PfAU1Ws8T0i57oUnSDTkVXzfcdpAx7_oHfu85VZ63sqXLZUmOMY0g"]}
+ },
+ "bearer": "Bearer zCjbM9NN7P4wDuHu98NxZyV",
+ "credentialResponse": {
+  "credentials": [{"credential": {
+   "@context": ["https://www.w3.org/ns/credentials/v2"],
+   "type": ["VerifiableCredential", "BylineDelegationCredential"],
+   "issuer": "did:key:zDnaeaQMfFWsRKSJGW739eBzhbpsnGVH3LePm6uR6Wyb7jHLj",
+   "validFrom": "2026-09-06T08:05:57Z",
+   "validUntil": "2026-09-13T08:05:57Z",
+   "credentialStatus": {"id": "urn:byline:status-list:1#2", "type": "BitstringStatusListEntry", "statusPurpose": "revocation", "statusListIndex": "2", "statusListCredential": "urn:byline:status-list:1"},
+   "credentialSubject": {"id": "did:key:zDnaebL7BDSFo6XH9T7ANUWP8DeHp4WBsMFDzNbMNod7juxyj", "name": "Nib, elsewhere", "authorisedBy": "did:key:zDnaeaQMfFWsRKSJGW739eBzhbpsnGVH3LePm6uR6Wyb7jHLj", "authorisedByName": "Test Runner", "scope": ["desk:read"], "audience": "urn:byline:masthead:Test Masthead", "parentCredential": null},
+   "proof": {"@context": ["https://www.w3.org/ns/credentials/v2"], "type": "DataIntegrityProof", "cryptosuite": "ecdsa-jcs-2019", "created": "2026-09-06T08:05:57Z", "verificationMethod": "did:key:zDnaeaQMfFWsRKSJGW739eBzhbpsnGVH3LePm6uR6Wyb7jHLj#zDnaeaQMfFWsRKSJGW739eBzhbpsnGVH3LePm6uR6Wyb7jHLj", "proofPurpose": "assertionMethod", "proofValue": "zfUJ91eznopxXrTHirPvHFaCJEyZhetY9AWD9TTK2r89k8jmJrME5Tk16ndvHGhGYo2L37ep123L8RCHXJ4pq9w5"}
+  }}]
+ },
+ "holderDid": "did:key:zDnaebL7BDSFo6XH9T7ANUWP8DeHp4WBsMFDzNbMNod7juxyj",
+ "issuerDid": "did:key:zDnaeaQMfFWsRKSJGW739eBzhbpsnGVH3LePm6uR6Wyb7jHLj"
+}

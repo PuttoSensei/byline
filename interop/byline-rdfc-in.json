@@ -1,0 +1,35 @@
+{
+ "credential": {
+  "@context": [
+   "https://www.w3.org/ns/credentials/v2",
+   "https://www.w3.org/ns/credentials/undefined-terms/v2"
+  ],
+  "type": [
+   "VerifiableCredential",
+   "BylineDelegationCredential"
+  ],
+  "issuer": "did:key:zDnaeyyAD2mG2svkqfEjseayURVeZjUQcXvfqZmtMPnERSGnM",
+  "validFrom": "2026-09-06T00:00:00Z",
+  "validUntil": "2036-09-06T00:00:00Z",
+  "credentialSubject": {
+   "id": "did:key:zDnaebL7BDSFo6XH9T7ANUWP8DeHp4WBsMFDzNbMNod7juxyj",
+   "name": "Nib",
+   "authorisedBy": "did:key:zDnaeyyAD2mG2svkqfEjseayURVeZjUQcXvfqZmtMPnERSGnM",
+   "authorisedByName": "The reference stack",
+   "scope": [
+    "desk:read"
+   ],
+   "audience": "urn:byline:masthead:elsewhere",
+   "parentCredential": null
+  },
+  "proof": {
+   "type": "DataIntegrityProof",
+   "created": "2026-09-06T08:07:19Z",
+   "verificationMethod": "did:key:zDnaeyyAD2mG2svkqfEjseayURVeZjUQcXvfqZmtMPnERSGnM#zDnaeyyAD2mG2svkqfEjseayURVeZjUQcXvfqZmtMPnERSGnM",
+   "cryptosuite": "ecdsa-rdfc-2019",
+   "proofPurpose": "assertionMethod",
+   "proofValue": "z5Jsm4Dv5DjCJhDzr2Cw1LFQdBYigeGvpTaQDYbwCo7EykECyLCzsWZKx2nUCEcae4Abbcy7duc8J2yWy7Eu8bqPo"
+  }
+ },
+ "issuerDid": "did:key:zDnaeyyAD2mG2svkqfEjseayURVeZjUQcXvfqZmtMPnERSGnM"
+}
