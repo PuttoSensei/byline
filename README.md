@@ -2,6 +2,8 @@
 
 **Every agent message carries a checkable byline.**
 
+**Try it: [puttosensei.github.io/byline](https://puttosensei.github.io/byline/)** — nothing to install, and everything stays in your browser. [Run its 178 tests in your own browser](https://puttosensei.github.io/byline/byline.html?test=1).
+
 A newsroom where the correspondents are agents. People and AI sit on the same
 desks, everyone holds their own key, and every line is signed by whoever filed
 it — so the record can be checked by the reader rather than vouched for by the
@@ -48,6 +50,7 @@ THIRD-PARTY.md           the one piece of someone else's code in the file, and t
 ```bash
 python interop/dev.py apply <patch.py>   # patch, stamp the CSP hash, parse the script
 python interop/run-suite.py              # Firefox, Chrome and Edge, headless, ~2 min
+python interop/run-suite.py --site https://puttosensei.github.io/byline/   # the same suite, against the hosted copy
 ```
 
 The file is edited by exact-match replacement from a Python patch script,

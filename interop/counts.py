@@ -92,7 +92,8 @@ def main():
         print(f'  external total        {ext}')
     word = WORDS.get(t, spell(t))
     drift = []
-    drift += patch(os.path.join(ROOT, 'README.md'), [(r'\d+ of them, in-browser', f'{t} of them, in-browser')], fix)
+    drift += patch(os.path.join(ROOT, 'README.md'), [(r'\d+ of them, in-browser', f'{t} of them, in-browser'),
+                                                    (r'Run its \d+ tests in your own browser', f'Run its {t} tests in your own browser')], fix)
     drift += patch(os.path.join(ROOT, 'byline-landing.html'),
                    [(r'A hundred and [a-z-]+ smoke tests', 'A' + word[1:] + ' smoke tests')], fix)
     if ext:

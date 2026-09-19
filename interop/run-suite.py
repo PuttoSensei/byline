@@ -44,10 +44,12 @@ ENGINES = [
                 os.path.join(PF86, 'Google', 'Chrome', 'Application', 'chrome.exe'),
                 os.path.join(LOCAL, 'Google', 'Chrome', 'Application', 'chrome.exe')],
      lambda exe, url, prof, size: [exe, '--headless=new', '--disable-gpu', '--no-first-run',
+                             '--disable-features=LocalNetworkAccessChecks,BlockInsecurePrivateNetworkRequests',
                              '--user-data-dir=' + prof] + (['--window-size=' + size.replace('x', ',')] if size else []) + [url]),
     ('edge', [os.path.join(PF86, 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
               os.path.join(PROGRAM_FILES, 'Microsoft', 'Edge', 'Application', 'msedge.exe')],
      lambda exe, url, prof, size: [exe, '--headless=new', '--disable-gpu', '--no-first-run',
+                             '--disable-features=LocalNetworkAccessChecks,BlockInsecurePrivateNetworkRequests',
                              '--user-data-dir=' + prof] + (['--window-size=' + size.replace('x', ',')] if size else []) + [url]),
 ]
 PHONE = '390x844'
@@ -115,18 +117,41 @@ class Collector(SimpleHTTPRequestHandler):
         with Collector.lock:
             Collector.verdicts[who] = rec
         self.send_response(204)
+        self.send_header('access-control-allow-origin', '*')
+        self.end_headers()
+
+    def do_OPTIONS(self):
+        # --site: the page comes from somewhere else (a hosted copy) and reports
+        # back here, so the browser asks first. Loopback from a public page also
+        # needs the private-network opt-in.
+        self.send_response(204)
+        self.send_header('access-control-allow-origin', '*')
+        self.send_header('access-control-allow-methods', 'POST, OPTIONS')
+        self.send_header('access-control-allow-headers', 'content-type')
+        self.send_header('access-control-allow-private-network', 'true')
         self.end_headers()
 
     def log_message(self, *a):
         pass
 
 
+SITE = None   # --site https://example/path/ : test a hosted copy instead of the local file
+
+
 def run(name, exe, argv, port, only, timeout, size=None):
-    url = f'http://127.0.0.1:{port}/byline.html?test=1&report=http://127.0.0.1:{port}/report/{name}'
+    base = SITE if SITE else f'http://127.0.0.1:{port}/'
+    url = f'{base}byline.html?test=1&report=http://127.0.0.1:{port}/report/{name}'
     if only:
         url += '&only=' + only
     url += f'&v={int(time.time())}'
     prof = tempfile.mkdtemp(prefix='byline-' + name + '-')
+    if name == 'firefox':
+        # --site: a hosted page reports to this machine, and headless Firefox has
+        # nobody to answer its local-network permission prompt. Test profile only.
+        with open(os.path.join(prof, 'user.js'), 'w') as f:
+            f.write('\n'.join(['user_pref("network.lna.blocking", false);',
+                               'user_pref("network.lna.enabled", false);',
+                               'user_pref("security.mixed_content.block_active_content", false);', '']))
     proc = subprocess.Popen(argv(exe, url, prof, size), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     started = time.time()
     deadline = started + timeout
@@ -159,6 +184,11 @@ def main():
         for name, exe, _ in found():
             print(f'{name:8} {exe}')
         return 0
+    if '--site' in args:
+        global SITE
+        i = args.index('--site')
+        SITE = args[i + 1].rstrip('/') + '/'
+        del args[i:i + 2]
     if '--only' in args:
         i = args.index('--only')
         only = args[i + 1]
