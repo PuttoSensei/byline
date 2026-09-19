@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-6f++aylRpqOFDiR/p9OFfyRcbibwI+CCdC8P64BPnOY='; style-src 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: data:; connect-src *; font-src 'self' data:; worker-src 'self' blob:; manifest-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-uNBCVyBDRsgb6W5bz5gCG6FmGoklkEt68MnAaJSgm+A='; style-src 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: data:; connect-src *; font-src 'self' data:; worker-src 'self' blob:; manifest-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#0d0d0e">
 <link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22Byline%22%2C%22short_name%22%3A%22Byline%22%2C%22description%22%3A%22A%20signed%20newsroom%20where%20AI%20correspondents%20work%20alongside%20people.%22%2C%22start_url%22%3A%22.%22%2C%22scope%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%230d0d0e%22%2C%22theme_color%22%3A%22%230d0d0e%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%2C%253Csvg%2520xmlns%253D%2522http%253A%252F%252Fwww.w3.org%252F2000%252Fsvg%2522%2520viewBox%253D%25220%25200%2520512%2520512%2522%253E%253Crect%2520width%253D%2522512%2522%2520height%253D%2522512%2522%2520rx%253D%252296%2522%2520fill%253D%2522%25230d0d0e%2522%252F%253E%253Ctext%2520x%253D%2522256%2522%2520y%253D%2522352%2522%2520text-anchor%253D%2522middle%2522%2520font-family%253D%2522Georgia%252Cserif%2522%2520font-size%253D%2522300%2522%2520font-weight%253D%2522700%2522%2520fill%253D%2522%2523e8412f%2522%253EB%253C%252Ftext%253E%253C%252Fsvg%253E%22%2C%22sizes%22%3A%22any%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%2C%22purpose%22%3A%22any%22%7D%5D%7D">
@@ -4913,25 +4913,26 @@ function paintOnb() {
   }
   if (S_ === 2) {
     html = `<div class="obcard">${bar(1)}
-      <h1>Staff the desk</h1>
-      <div class="lead">Byline is model-agnostic. It looks for agent harnesses already installed on this machine — your correspondents run inside them.</div>
+      <h1>How your correspondents think</h1>
+      <div class="lead">Out of the box they answer from a script, so you can see how a desk works. To make them really think, connect a model afterwards under Settings → Live model: a local one through Ollama, or the Anthropic API. Nothing on this machine is scanned or installed.</div>
       <div style="margin-top:18px" id="hlist">
         ${Object.values(HARNESSES).map(h => `<div class="hbox" data-h="${esc(h.id)}">
           <div style="font-size:19px;width:22px;text-align:center;color:var(--honey)">${h.icon}</div>
           <div style="flex:1"><b>${esc(h.name)}</b> <span class="tiny dimt">${esc(h.vendor)}</span>
             <div class="tiny mut">${esc(h.note)}</div></div>
-          <div class="stat"><div class="scan"></div></div>
+          <div class="stat">${h.real ? '<span class="pill good">● real, once connected</span>' : '<span class="pill off">○ a working style only</span>'}</div>
         </div>`).join('')}
       </div>
+      <div class="tiny dimt" style="margin-top:10px">The named coding harnesses are styles of working a correspondent can be given. A web page cannot launch Claude Code, Codex or goose, and this one does not pretend to.</div>
       <div style="display:flex;gap:9px;margin-top:18px">
-        <span style="flex:1"></span><button class="btn primary" id="obNext" disabled>Scanning…</button>
+        <span style="flex:1"></span><button class="btn primary" id="obNext">Continue</button>
       </div></div>`;
   }
   if (S_ === 3) {
     const h = HARNESSES[OB.harness];
     html = `<div class="obcard">${bar(2)}
-      <h1>Default harness</h1>
-      <div class="lead">Every correspondent you hire uses this unless you override it. You can move any of them later with a dropdown.</div>
+      <h1>Default working style</h1>
+      <div class="lead">Every correspondent you hire starts with this unless you override it. It shapes the scripted activity you see; real thinking comes from the model you connect. You can change any of them later.</div>
       <div style="margin-top:16px">
         ${Object.values(HARNESSES).filter(x => OB.installed[x.id]).map(x => `<div class="hbox ${OB.harness === x.id ? 'found' : ''}" data-pickh="${esc(x.id)}" style="cursor:pointer">
           <div style="font-size:19px;width:22px;text-align:center;color:var(--honey)">${x.icon}</div>
@@ -4996,7 +4997,7 @@ function paintOnb() {
     host.querySelector('#obExisting').onclick = () => {
       const k = prompt('Paste your secret. Any string works — it seeds this byline; it is not a Nostr login, and the signing key is minted here:');
       if (!k) return;
-      const kp = keypair(k); OB.sec = kp.sec; OB.pub = kp.pub; OB.step = 2; scanHarnesses();
+      const kp = keypair(k); OB.sec = kp.sec; OB.pub = kp.pub; OB.step = 2; paintOnb(); offerStyles();
     };
   }
   if (S_ === 1) {
@@ -5004,7 +5005,7 @@ function paintOnb() {
       navigator.clipboard && navigator.clipboard.writeText(OB.secret ? 'nsec1' + OB.secret : nsec(OB.sec));
       toast('Secret key copied', true);
     };
-    nextBtn.onclick = () => { OB.step = 2; paintOnb(); scanHarnesses(); };
+    nextBtn.onclick = () => { OB.step = 2; paintOnb(); offerStyles(); };
   }
   if (S_ === 3) {
     host.querySelectorAll('[data-pickh]').forEach(n => n.onclick = () => { OB.harness = n.dataset.pickh; OB.model = HARNESSES[OB.harness].models[0]; paintOnb(); });
@@ -5031,18 +5032,13 @@ function paintOnb() {
   }
 }
 
-async function scanHarnesses() {
-  const host = $('#onb');
-  const ids = Object.keys(HARNESSES);
-  for (const id of ids) {
-    await sleep(520);
-    const row = host.querySelector(`[data-h="${CSS.escape(id)}"]`); if (!row) return;
-    OB.installed[id] = true;
-    row.classList.add('found');
-    row.querySelector('.stat').innerHTML = `<span class="pill good">✓ detected</span>`;
-  }
-  const b = host.querySelector('#obNext');
-  if (b) { b.disabled = false; b.textContent = 'Install all & continue'; b.onclick = async () => { b.textContent = 'Installing…'; await sleep(600); OB.step = 3; paintOnb(); }; }
+/* This step used to run a timer, mark every harness "detected", and offer to
+   "install all" — none of which happened. Nothing is scanned: every working
+   style is simply available, and the step says which engine is real. */
+function offerStyles() {
+  Object.keys(HARNESSES).forEach(id => { OB.installed[id] = true; });
+  const b = $('#onb').querySelector('#obNext');
+  if (b) b.onclick = () => { OB.step = 3; paintOnb(); };
 }
 
 async function finishOnboarding() {
@@ -12406,6 +12402,19 @@ async function runTests() {
     ok(!kept.workflows.some(w => w.id === 'wf_in_file'), 'and none of its workflows come in');
     const taken = applyWorkspaceImport(JSON.parse(JSON.stringify(other)), { settings: true, workflows: true });
     ok(/collector/.test(JSON.stringify(taken.settings)) && taken.workflows.some(w => w.id === 'wf_in_file'), 'asked, they are taken');
+  });
+  await t('Robustness', 'onboarding does not pretend to detect or install anything', () => {
+    const was = { step: OB.step, installed: Object.assign({}, OB.installed) }, host = $('#onb'), shown = host.style.display, html = host.innerHTML;
+    try {
+      OB.step = 2; paintOnb(); offerStyles();
+      const text = host.textContent;
+      ok(!/detected|Scanning|Install all|Installing/i.test(text), 'no scan, no detection, no install: ' + (text.match(/detected|Scanning|Install all|Installing/i) || [''])[0]);
+      ok(/Nothing on this machine is scanned or installed/.test(text), 'it says so in as many words');
+      eq(host.querySelectorAll('.pill.good').length, Object.values(HARNESSES).filter(h => h.real).length, 'only the engines that really run are marked real:');
+      ok(!host.querySelector('#obNext').disabled, 'and the step does not make you wait for theatre');
+      const src = [...document.scripts].map(x => x.text).join(String.fromCharCode(10));
+      ok(src.split('function scan' + 'Harnesses').length === 1, 'the fake scan is gone from the source');
+    } finally { OB.step = was.step; OB.installed = was.installed; host.innerHTML = html; host.style.display = shown; }
   });
   await t('Portability', 'a masthead survives a round trip', () => {
     const dump = JSON.parse(JSON.stringify(Object.assign({ kind: 'byline.workspace.v1' }, S)));
