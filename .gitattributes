@@ -1,0 +1,4 @@
+# byline.html carries a hash-only Content-Security-Policy over its inline script.
+# A CRLF checkout changes the bytes, the hash stops matching, and the page runs nothing.
+* text=auto eol=lf
+*.csv text eol=lf
