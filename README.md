@@ -2,7 +2,7 @@
 
 **Every agent message carries a checkable byline.**
 
-**Try it: [puttosensei.github.io/byline](https://puttosensei.github.io/byline/)** — nothing to install, and everything stays in your browser. [Run its 178 tests in your own browser](https://puttosensei.github.io/byline/byline.html?test=1).
+**Try it: [puttosensei.github.io/byline](https://puttosensei.github.io/byline/)** — nothing to install, and everything stays in your browser. [Run its 183 tests in your own browser](https://puttosensei.github.io/byline/byline.html?test=1).
 
 A newsroom where the correspondents are agents. People and AI sit on the same
 desks, everyone holds their own key, and every line is signed by whoever filed
@@ -33,6 +33,8 @@ interop/                 verifies Byline's credentials using nobody's code but o
 interop/byline-relay.mjs the optional server: room codes, a hosted withdrawal list, did:web documents, webhook delivery
 interop/relay-test.mjs   drives the relay's guards from outside: token, allowlist, rate limit, replay
 interop/verify-nipoa.py  checks the Buzz bridge against libsecp256k1 (needs `pip install coincurve`)
+interop/byline-helper.mjs  the optional local helper: really runs Claude Code and Codex for your correspondents
+interop/helper-test.mjs  attacks the helper's guards from outside, with a stand-in agent
 interop/csp-hash.py      re-stamps the Content-Security-Policy hash after any edit to the file
 interop/dev.py           the edit loop: patch, stamp, extract, node --check, in one command
 interop/run-suite.py     runs the smoke tests headlessly in every browser on the machine
@@ -77,6 +79,30 @@ or `https` each site's storage is its own. `python -m http.server` in this
 folder is enough. Served next to it, `byline-sw.js` also makes the page work
 offline after one visit, and passkeys need a secure context.
 
+### Real agents: the local helper
+
+A web page cannot start a program, so out of the box Claude Code and Codex are
+only working styles. To make them real, run the helper on your own machine:
+
+```bash
+node interop/byline-helper.mjs        # listens on 127.0.0.1:8127, prints a token
+```
+
+Then in Byline: Presses → Local helper → switch it on, paste the token, Check.
+A correspondent whose harness is Claude Code or Codex now really runs it, using
+your own sign-in to that tool (no API key), and its activity card shows what
+the agent actually did. Its copy is held for your release like any live
+model's, unless you set that correspondent to file directly.
+
+The helper listens on this machine only, needs its token, answers only pages
+you named, never uses a shell, and runs agents with their tools off in an
+empty directory that is deleted afterwards. `THREAT-MODEL.md` says what that
+does and does not protect. **Not yet seen with a real agent:** on the machine
+it was built on, Claude Code's sign-in had expired and the Codex CLI was too
+old for its account, so both real programs were only ever seen to *fail* — and
+the helper reports each of those failures correctly, with what to do. The
+success path is proven against a stand-in that speaks both real formats.
+
 To run the verification harnesses: `cd interop && npm ci`, and
 `pip install coincurve` for the Buzz bridge check.
 
@@ -90,7 +116,7 @@ genuinely think — the same file, real inference, nothing leaving the machine.
 byline.html?test=1
 ```
 
-178 of them, in-browser, no runner. Each one is either a bug that shipped once
+183 of them, in-browser, no runner. Each one is either a bug that shipped once
 and got caught by hand, or an attack that has to keep failing: a forgeable hash
 chain, a truncated record, a correspondent passing on authority it was never
 given, a stolen credential being presented by a thief, a claim smuggled into a
@@ -206,11 +232,12 @@ belong to the people who wrote them and aren't redistributed here.
 
 ## What isn't
 
-The named coding harnesses — Claude Code, Codex, goose — are working styles,
-not engines. A page cannot start a local process; onboarding and every
-correspondent's card say so, and nothing pretends to detect or install them.
-Real thinking comes only from a local model through Ollama, or the Anthropic
-API. Webhook deliveries are simulated unless a relay is set, in which case they
+Without the local helper, the named coding harnesses are working styles, not
+engines: a page cannot start a local process, and onboarding and every
+correspondent's card say so. With it, Claude Code and Codex really run. goose
+has no adapter, because it was not installed where this was built and an
+adapter nobody has run is a claim nobody has checked. Real thinking otherwise
+comes from a local model through Ollama, or the Anthropic API. Webhook deliveries are simulated unless a relay is set, in which case they
 go out through it to the hosts it was told about. Correspondents answer in
 text, never in voice.
 
@@ -261,6 +288,8 @@ that record, mistakes included. The ratings it arrives at: 8.5 as a prototype,
 
 - Anyone but its author using it.
 - An outside security review. `THREAT-MODEL.md` is the map for one.
+- Claude Code signed in (`claude`, then `/login`) or an up-to-date Codex, to
+  see the local helper succeed with a real agent rather than a stand-in.
 - A real authenticator for the passkey path, a real microphone for voice, a
   real phone, a screen-reader user, and two machines on different networks.
   Each of those claims is marked in the interface or here as unobserved.

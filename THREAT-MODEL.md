@@ -189,7 +189,44 @@ names, so a public name that resolves to a private address is not caught here.
 **The test link — fixed.** Results go only to the server that served the page,
 or to this machine.
 
-**The masthead file still holds every key, on purpose.** "Download masthead" is a
+**The local helper — a new door, and the most dangerous one.**
+`interop/byline-helper.mjs` is optional, and it is a program that launches
+coding agents when asked. Anything that can ask it is one step from running
+code as you. What stands in the way, each attacked from outside by
+`interop/helper-test.mjs` and each removed in turn to prove a test notices:
+
+- It binds to 127.0.0.1 only; another machine on your network cannot reach it.
+- Every request needs a bearer token, compared in constant time. Byline keeps
+  that token under the same lock as your keys, and never sends it to a peer.
+- It answers only origins you named, never a `file://` page, and checks the
+  `Host` header, so a hostile site cannot reach it by pointing its own name at
+  127.0.0.1.
+- It runs a fixed table of programs with fixed arguments and no shell. The
+  brief and the desk's copy reach the agent on stdin; nothing a desk says can
+  become a command-line flag. Byline does not even send a model name.
+- Agents run with tools off (Codex in its read-only sandbox), in an empty
+  directory deleted afterwards, without the helper's token in their
+  environment. One run per harness, deadlines, an output ceiling, and the whole
+  process tree is killed when any is hit or the page goes away.
+- On Byline's side the helper's address is held to this machine, so neither a
+  typo nor an imported masthead can send desk copy and the token elsewhere; an
+  import that would switch the helper on says so before you accept it.
+
+What it does not protect against. **Malware already on your machine** can read
+the token file and ask for itself — though it could also just run the agents.
+**Prompt injection is the real residual.** A real agent reads desk copy, and a
+peer or an imported file can put words on a desk. With tools off, the worst it
+can do is say something false under a correspondent's byline, which Byline
+holds for your release by default. Start the helper with
+`BYLINE_HELPER_TOOLS=research` and Claude Code can search and fetch the web; an
+agent steered by desk text could then carry what it read to an address of the
+attacker's choosing. That is why research is off unless you turn it on, and why
+Byline shows a warning when the helper reports it is on. **The agents
+themselves** are other people's software, run with your sign-in, and their own
+sandboxing is theirs to get right. And it has **not yet been seen succeeding
+with a real agent**; see the README.
+
+ "Download masthead" is a
 backup you can open on another machine, so it is the full state, keys included.
 That makes it the one file here that must not be passed to a colleague, and it
 now says so as it downloads. If you want to give someone the record without the

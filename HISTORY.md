@@ -922,3 +922,41 @@ includes the test that searches, so they would have passed with the call
 removed. They now look only at the functions they guard.
 
 Verified in **Firefox 155 and Chrome 152, 177 pass, 0 fail** each.
+
+### The twenty-second pass: published
+
+A repository of its own (the working folder held a dozen other projects), LF
+pinned because a CRLF checkout breaks the CSP hash, commits re-authored to a
+no-reply address before anything went public, Apache 2.0, this diary split from
+the README. Onboarding stopped pretending: it used to run a timer, mark every
+harness "detected" and offer to "install all", none of which happened. And the
+suite learned to test a hosted copy — 178 of 178 against the live https site,
+in two engines, at two widths.
+
+### The twenty-third pass: the helper, and two real agents that would not run
+
+The one thing keeping this from being usable was that its correspondents did
+not really run on anything. `interop/byline-helper.mjs` fixes that, and is the
+most dangerous file here, so it was built guards-first.
+
+Trying the real programs before writing a line found both broken on the build
+machine, for reasons only their owner can fix: Claude Code printed its `init`
+line and then hung for minutes, retrying a 401 on an expired sign-in; Codex was
+signed in but refused by the API as too old for its account's model. Those two
+transcripts became the first fixtures. The helper now stops a silent agent at a
+first-output deadline and says "run `claude`, then /login", and unwraps Codex's
+JSON-inside-JSON error into the sentence a person needs.
+
+33 mutations across both halves — bind to every interface, accept any token,
+answer any origin, skip the Host check, put the prompt on the command line, run
+through a shell, leave tools on, leave the sandbox, hand the agent the token,
+skip the authority gate, accept a helper anywhere — and 33 caught. Two needed
+better tests first: the stand-in agent was a Node process, and Node on Windows
+takes its ordinary children down with it, so the tree-kill could be deleted
+without a test noticing until the stand-in started a detached grandchild; and
+Codex's raw JSON error contained the very phrase the test looked for.
+
+Then the seam, in a real browser against the real helper: a wrong token
+refused, the right one connected, both agent formats streamed through real
+CORS and preflight. What has still never been seen is a real agent succeeding.
+

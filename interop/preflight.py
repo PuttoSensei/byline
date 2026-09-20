@@ -18,7 +18,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INTEROP = os.path.join(ROOT, 'interop')
 PY = sys.executable
 HARNESSES = ['verify.mjs', 'verify-formats.mjs', 'verify-oid4vp.mjs', 'verify-wallet.mjs',
-             'verify-sdjwt.mjs', 'verify-rdfc.mjs', 'verify-oid4vci.mjs', 'relay-test.mjs', 'verify-nipoa.py']
+             'verify-sdjwt.mjs', 'verify-rdfc.mjs', 'verify-oid4vci.mjs', 'relay-test.mjs', 'verify-nipoa.py', 'helper-test.mjs']
 
 failures = []
 

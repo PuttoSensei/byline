@@ -6,6 +6,7 @@ __pycache__/
 
 # the relay's store: hosted lists, documents, and the token it made for itself
 interop/_relay.json
+interop/_helper.json
 interop/_reports.jsonl
 
 # dependencies of the verification harnesses (npm ci restores them)

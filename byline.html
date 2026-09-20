@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-uNBCVyBDRsgb6W5bz5gCG6FmGoklkEt68MnAaJSgm+A='; style-src 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: data:; connect-src *; font-src 'self' data:; worker-src 'self' blob:; manifest-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-8NIQEr2OTHE18NBO0D7DePHC95Ga0L7ZDQoEFQc4Oy4='; style-src 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: data:; connect-src *; font-src 'self' data:; worker-src 'self' blob:; manifest-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#0d0d0e">
 <link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22Byline%22%2C%22short_name%22%3A%22Byline%22%2C%22description%22%3A%22A%20signed%20newsroom%20where%20AI%20correspondents%20work%20alongside%20people.%22%2C%22start_url%22%3A%22.%22%2C%22scope%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%230d0d0e%22%2C%22theme_color%22%3A%22%230d0d0e%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%2C%253Csvg%2520xmlns%253D%2522http%253A%252F%252Fwww.w3.org%252F2000%252Fsvg%2522%2520viewBox%253D%25220%25200%2520512%2520512%2522%253E%253Crect%2520width%253D%2522512%2522%2520height%253D%2522512%2522%2520rx%253D%252296%2522%2520fill%253D%2522%25230d0d0e%2522%252F%253E%253Ctext%2520x%253D%2522256%2522%2520y%253D%2522352%2522%2520text-anchor%253D%2522middle%2522%2520font-family%253D%2522Georgia%252Cserif%2522%2520font-size%253D%2522300%2522%2520font-weight%253D%2522700%2522%2520fill%253D%2522%2523e8412f%2522%253EB%253C%252Ftext%253E%253C%252Fsvg%253E%22%2C%22sizes%22%3A%22any%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%2C%22purpose%22%3A%22any%22%7D%5D%7D">
@@ -6066,6 +6066,76 @@ async function askClaude(agent, trigger, c, onChunk) {
   } finally { clearTimeout(overall); }
 }
 
+/* ---------- the local helper ----------
+   A page cannot start a program, so Claude Code and Codex were working styles:
+   labels over a script. interop/byline-helper.mjs is a small program on your
+   own machine that runs them for real and streams back what they did. This is
+   Byline's half of that. Three rules:
+   - The helper is on this machine or it is nowhere. The address is held to
+     http://127.0.0.1 or http://localhost, so desk copy and the token are never
+     sent to somebody else's "helper".
+   - Byline sends the harness, the brief and the question, and nothing else.
+     Which program runs, with which arguments, is the helper's fixed table.
+   - What comes back is live copy like any other: it passes the correspondent's
+     authority and is held for release unless you said it may file directly. */
+const HELPER = { harnesses: null, status: 'unchecked', research: false };   // what the helper last said; never stored
+const HELPER_CFG = () => S.settings.helper || (S.settings.helper = { on: false, url: 'http://127.0.0.1:8127', token: '' });
+function helperUrl() {
+  const raw = String(HELPER_CFG().url || '').trim();
+  if (!/^http:\/\/(127\.0\.0\.1|localhost):\d{1,5}\/?$/.test(raw)) return '';
+  return raw.replace(/\/$/, '');
+}
+const helperHeaders = () => ({ 'content-type': 'application/json', authorization: 'Bearer ' + secret('helperToken') });
+async function helperCheck() {
+  HELPER.harnesses = null;
+  const base = helperUrl();
+  if (!HELPER_CFG().on) { HELPER.status = 'off'; return false; }
+  if (!base) { HELPER.status = 'refused: the helper has to be on this machine (http://127.0.0.1:<port>)'; return false; }
+  if (!secret('helperToken')) { HELPER.status = HELPER_CFG().tokenEnc ? 'locked: unlock the masthead to use the helper' : 'no token: paste the one the helper printed'; return false; }
+  try {
+    const r = await fetch(base + '/harnesses', { headers: helperHeaders() });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { HELPER.status = 'refused: ' + (j.error || 'it answered ' + r.status); return false; }
+    if (j.helper !== 'byline-helper' || !j.harnesses) { HELPER.status = 'that is not a Byline helper'; return false; }
+    HELPER.harnesses = j.harnesses; HELPER.research = !!j.research;
+    const live = Object.values(j.harnesses).filter(h => h && h.installed).map(h => h.name);
+    HELPER.status = live.length ? 'connected: ' + live.join(' and ') + ' will really run' : 'connected, but no agent is installed on this machine';
+    return true;
+  } catch (e) { HELPER.status = 'not reachable: is `node interop/byline-helper.mjs` running? (' + (e.message || e) + ')'; return false; }
+}
+const harnessIsReal = h => !!h && (h.real || !!(HELPER_CFG().on && HELPER.harnesses && HELPER.harnesses[h.id] && HELPER.harnesses[h.id].installed));
+const helperFor = agent => { const h = harnessOf(agent); return !h.real && harnessIsReal(h) && helperUrl() ? h.id : null; };
+async function askHelper(agent, trigger, c, onChunk, onTool) {
+  const base = helperUrl();
+  if (!base) throw new Error('the helper has to be on this machine');
+  const { system, user } = buildPrompt(agent, trigger, c);
+  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 200e3);
+  try {
+    const r = await fetch(base + '/run', { method: 'POST', headers: helperHeaders(), signal: ctl.signal,
+      body: JSON.stringify({ harness: harnessOf(agent).id, system, prompt: user }) });
+    if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || 'the helper answered ' + r.status); }
+    let text = '', tokens = 0, failure = null, buf = '';
+    const take = line => {
+      if (!line.trim()) return;
+      let o; try { o = JSON.parse(line); } catch (e) { return; }
+      if (o.t === 'text' && typeof o.text === 'string') { text += (text ? String.fromCharCode(10, 10) : '') + o.text; if (onChunk) onChunk(text); }
+      else if (o.t === 'tool' && onTool) onTool(String(o.name || 'tool').slice(0, 40), String(o.detail || '').slice(0, 160));
+      else if (o.t === 'done') tokens = ((o.tokens || {}).in || 0) + ((o.tokens || {}).out || 0);
+      else if (o.t === 'error') failure = String(o.why || 'it failed') + (o.hint ? ' — ' + o.hint : '');
+    };
+    const NL = String.fromCharCode(10);
+    if (r.body && r.body.getReader) {
+      const reader = r.body.getReader(), dec = new TextDecoder();
+      for (;;) { const { done, value } = await reader.read(); if (done) break;
+        buf += dec.decode(value, { stream: true }); let i; while ((i = buf.indexOf(NL)) >= 0) { take(buf.slice(0, i)); buf = buf.slice(i + 1); } }
+      take(buf);
+    } else (await r.text()).split(NL).forEach(take);
+    if (failure) throw new Error(failure);
+    if (!text.trim()) throw new Error('it finished without saying anything');
+    return { text: text.trim(), tokens };
+  } catch (e) { throw new Error(e.name === 'AbortError' ? 'the helper took too long and was abandoned' : (e.message || String(e))); }
+  finally { clearTimeout(timer); }
+}
 const askModel = (agent, trigger, c, onChunk) =>
   LIVE_CFG().provider === 'claude' ? askClaude(agent, trigger, c, onChunk) : askOllama(agent, trigger, c, onChunk);
 const liveModelName = () => { const cfg = LIVE_CFG(); return cfg.provider === 'claude' ? (cfg.amodel || 'claude-opus-5') : cfg.model; };
@@ -6226,8 +6296,9 @@ async function runAgent(agent, trigger, c) {
   react2(trigger, '👀', agent.id);
 
   const cfg = LIVE_CFG();
-  const lname = liveModelName();
-  const goLive = cfg.on && !!lname && (cfg.provider !== 'claude' || !!secret('apiKey'));
+  const viaHelper = helperFor(agent);                   // this correspondent's harness really runs, on this machine
+  const lname = viaHelper ? h.name : liveModelName();
+  const goLive = !!viaHelper || (cfg.on && !!lname && (cfg.provider !== 'claude' || !!secret('apiKey')));
   const acts = [];
   let toolset = goLive
     ? [['memory', `load ${(agent.memories || []).length} core memories`], ['Read', `desk history — {N} messages`], ['galley', 'read the shared brief'], [lname, 'generating…']]
@@ -6242,13 +6313,17 @@ async function runAgent(agent, trigger, c) {
     if (UI.channelId === c.id) syncThinking();
     let out = null, failed = null;
     try {
-      out = await askModel(agent, trigger, c, partial => {
+      const onPartial = partial => {
         const LL = LIVE[agent.id]; if (!LL) return;
         LL.acts = L.acts.concat([{ tool: lname, detail: partial.slice(-90).replace(/\s+/g, ' ') }]);
         LL.tokens = Math.round(partial.length / 4);
         if (UI.channelId === c.id && !trigger.threadOf) syncThinking();
         else if (UI.rpanel === 'thread') renderRPanel();
-      });
+      };
+      /* a real agent reports what it really did, and that is what the card shows */
+      const onTool = (tool, detail) => { L.acts = L.acts.concat([{ tool, detail }]); const LL = LIVE[agent.id]; if (LL) LL.acts = L.acts;
+        if (UI.channelId === c.id && !trigger.threadOf) syncThinking(); };
+      out = viaHelper ? await askHelper(agent, trigger, c, onPartial, onTool) : await askModel(agent, trigger, c, onPartial);
     } catch (e) { failed = e.message || String(e); }
     delete LIVE[agent.id];
     agent.busy = false;
@@ -6256,7 +6331,7 @@ async function runAgent(agent, trigger, c) {
     if (out && out.text) {
       const mem2 = extractMemory(trigger.text);
       if (mem2) { agent.memories = agent.memories || []; if (!agent.memories.includes(mem2)) agent.memories.unshift(mem2); }
-      const acts2 = L.acts.concat([{ tool: lname, detail: `${out.tokens || '~'} tokens · ${cfg.provider === 'claude' ? 'Claude API' : 'local · no API bill'}` }]);
+      const acts2 = L.acts.concat([{ tool: lname, detail: `${out.tokens || '~'} tokens · ${viaHelper ? 'ran on this machine, through the local helper' : cfg.provider === 'claude' ? 'Claude API' : 'local · no API bill'}` }]);
       /* TM-011, and worse than it was rated. This path filed without asking
          what the correspondent may do: a withdrawn delegation, "reads only",
          "asks first" — all ignored the moment a real model answered. Live
@@ -6293,8 +6368,8 @@ async function runAgent(agent, trigger, c) {
       save();
       return;
     }
-    cfg.status = 'error: ' + failed;
-    postMessage({ channelId: c.id, authorId: S.meId, kind: 'system', text: `⚠️ Live model unreachable (${esc(failed || 'empty reply')}) — **${agent.name}** fell back to its written reply.` });
+    if (viaHelper) HELPER.status = 'last run failed: ' + failed; else cfg.status = 'error: ' + failed;
+    postMessage({ channelId: c.id, authorId: S.meId, kind: 'system', text: `⚠️ ${viaHelper ? esc(h.name) + ' did not answer' : 'Live model unreachable'} (${esc(failed || 'empty reply')}) — **${agent.name}** fell back to its written reply.` });
     agent.busy = true;   // continue down the scripted path below
     toolset = h.tools.slice();
     if (role === 'chief') toolset.push(['delegate', 'pick owners + spin up a channel']);
@@ -6919,10 +6994,33 @@ function renderComputePage(host) {
     ${Object.values(HARNESSES).map(h => `<div class="rowbox">
       <div style="font-size:17px;color:var(--honey);width:20px;text-align:center">${h.icon}</div>
       <div class="sp"><b>${esc(h.name)}</b> <span class="tiny dimt">${esc(h.vendor)}</span><div class="tiny mut">${esc(h.note)}</div></div>
-      <span class="pill ${h.real ? 'good' : 'off'}">${h.real ? 'real inference' : 'scripted'}</span>
+      <span class="pill ${harnessIsReal(h) ? 'good' : 'off'}">${h.real ? 'real inference' : harnessIsReal(h) ? 'really runs · ' + esc(((HELPER.harnesses[h.id] || {}).version || 'through the helper').slice(0, 28)) : 'scripted'}</span>
       ${S.settings.defaultHarness === h.id ? '<span class="pill warn">default</span>' : ''}</div>`).join('')}
-    <div class="tiny dimt" style="margin:-2px 2px 0">A page cannot start a local process, so the coding harnesses are named and switchable but scripted. Only the local-model route does real inference — point it at Ollama or a Claude key under Live model.</div>
+    <div class="card" style="margin:10px 0;border-color:${HELPER.harnesses ? '#5aa87755' : 'var(--border)'}">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div class="sp"><b>Local helper</b><div class="tiny mut">A small program on this machine that really runs Claude Code and Codex for your correspondents. Start it with <span class="mono">node interop/byline-helper.mjs</span>; it prints a token. It listens on this machine only, and Byline will not talk to a helper anywhere else.</div></div>
+        <button class="sw ${HELPER_CFG().on ? 'on' : ''}" id="helperTog" role="switch" aria-checked="${HELPER_CFG().on ? 'true' : 'false'}" aria-label="Use the local helper"></button>
+      </div>
+      ${HELPER_CFG().on ? `<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+        <input class="i mono" id="helperUrl" value="${esc(HELPER_CFG().url || '')}" placeholder="http://127.0.0.1:8127" aria-label="Helper address" style="flex:1;min-width:190px;font-size:12.5px">
+        <input class="i mono" id="helperToken" type="password" value="${esc(HELPER_CFG().token || '')}" placeholder="${HELPER_CFG().tokenEnc ? 'kept under the lock' : 'the token it printed'}" autocomplete="off" aria-label="Helper token" style="flex:1;min-width:190px;font-size:12.5px">
+        <button class="btn sm" id="helperGo">Check</button></div>
+      <div class="tiny" style="margin-top:8px;color:${HELPER.harnesses ? 'var(--good)' : 'var(--honey)'}">${esc(HELPER.status)}</div>
+      ${HELPER.research ? '<div class="tiny" style="margin-top:4px;color:var(--hot)">The helper was started with research on: Claude Code may search and fetch the web, and desk text can steer it.</div>' : ''}
+      <div class="tiny dimt" style="margin-top:6px">A real agent’s copy is held for your release like any live model’s, unless you set that correspondent to file directly.</div>` : ''}
+    </div>
+    <div class="tiny dimt" style="margin:-2px 2px 0">A page cannot start a local process. With the local helper running, Claude Code and Codex really run; without it they are scripted working styles. Only the local-model route does real inference — point it at Ollama or a Claude key under Live model.</div>
   </div></div>`;
+  const hTog = $('#helperTog');
+  if (hTog) hTog.onclick = async () => { const hc = HELPER_CFG(); hc.on = !hc.on; save(); await helperCheck(); render(); };
+  const hGo = $('#helperGo');
+  if (hGo) hGo.onclick = async () => {
+    HELPER_CFG().url = $('#helperUrl').value.trim();
+    const tk = $('#helperToken').value.trim();
+    if (tk && !(await setSecret('helperToken', tk))) return;
+    save(); hGo.textContent = 'Checking…'; await helperCheck(); render();
+    toast(HELPER.harnesses ? 'Helper connected' : 'Helper: ' + HELPER.status, !!HELPER.harnesses);
+  };
   $('#shareTog').onclick = () => {
     S.settings.shareCompute = !S.settings.shareCompute;
     logEvent('compute.shared', { on: S.settings.shareCompute, model: S.settings.sharedModel });
@@ -7470,7 +7568,7 @@ const kekFor = (lock, pass) => lock.mode === 'passkey' ? passkeyKek(lock) : kdf(
    in memory, after an unlock — as the private keys do. */
 const SECRETS = new Map();
 let KEY_WAS_OPEN = false;
-const SECRET_SPOTS = { apiKey: [() => LIVE_CFG(), 'key'], relayToken: [() => S.workspace, 'relayToken'] };
+const SECRET_SPOTS = { apiKey: [() => LIVE_CFG(), 'key'], relayToken: [() => S.workspace, 'relayToken'], helperToken: [() => HELPER_CFG(), 'token'] };
 function secret(name) {
   const [holder, k] = SECRET_SPOTS[name];
   const o = (S && holder()) || {};
@@ -7626,7 +7724,7 @@ function promptUnlock() {
     const v = pk ? '' : m.q('#pw').value;
     m.q('#pwErr').textContent = '';
     const ok = await unlockKeys(v);
-    if (ok) { m.close(); render(); toast('Unlocked', true); commitMissing().then(n => { if (n) render(); }); }
+    if (ok) { m.close(); render(); toast('Unlocked', true); commitMissing().then(n => { if (n) render(); }); if (HELPER_CFG().on) helperCheck().then(() => render()); }
     else m.q('#pwErr').textContent = pk
       ? 'The passkey did not open these keys' + (unlockKeys.why ? ': ' + unlockKeys.why : '.')
       : 'That passphrase does not open these keys.';
@@ -7806,6 +7904,7 @@ function workspaceImportPlan(j) {
     keyInFile: !!(you.jwk || you.enc),
     keysInFile: Object.values(j.people || {}).filter(p => p && (p.jwk || p.enc)).length,
     model: lc.on ? (lc.provider === 'claude' ? 'the Anthropic API' : (lc.url || 'a local model')) : null,
+    helper: !!(j.settings && j.settings.helper && j.settings.helper.on),
     relay: (j.workspace && j.workspace.relay) || null,
     workflows: (Array.isArray(j.workflows) ? j.workflows : []).filter(w => w && w.enabled).map(w => String(w.name || 'a workflow')),
   };
@@ -7834,7 +7933,7 @@ function importWorkspace() {
       <div class="tiny mut" style="margin:6px 0 12px">“${esc((j.workspace && j.workspace.name) || 'That masthead')}” replaces everything here. This is what it would change.</div>
       ${row('You would file as ' + esc(plan.becomes), plan.keyInFile ? 'That identity’s private key is in the file — whoever made the file holds it too.' : 'The file carries no private key for that identity: you could read, but not sign, until you import one.')}
       ${row(plan.keysInFile + ' private key' + (plan.keysInFile === 1 ? '' : 's') + ' in the file', 'Anyone with the file can sign as each of them.')}
-      <label class="rowbox" style="padding:8px 10px;cursor:pointer"><input type="checkbox" id="impSet"><div class="sp"><b>Also take its settings</b><div class="tiny mut">model: ${esc(plan.model || 'none')} · relay: ${esc(plan.relay || 'none')}</div></div></label>
+      <label class="rowbox" style="padding:8px 10px;cursor:pointer"><input type="checkbox" id="impSet"><div class="sp"><b>Also take its settings</b><div class="tiny mut">model: ${esc(plan.model || 'none')} · relay: ${esc(plan.relay || 'none')}${plan.helper ? ' · <b>and it switches the local helper on</b>, so its correspondents would run real agents on this machine' : ''}</div></div></label>
       <label class="rowbox" style="padding:8px 10px;cursor:pointer"><input type="checkbox" id="impWf"><div class="sp"><b>Also take its workflows</b><div class="tiny mut">${plan.workflows.length ? esc(plan.workflows.join(', ')) : 'none enabled'}</div></div></label>
       <div class="tiny dimt" style="margin-top:8px">Unticked, your own settings, relay and workflows stay as they are.</div>`,
       `<button class="btn" data-close>Cancel</button><button class="btn danger" id="impGo">Replace this masthead</button>`, true);
@@ -9022,7 +9121,7 @@ function agentModal(agent) {
       <div style="font-size:17px;color:var(--honey);width:20px;text-align:center">${h.icon}</div>
       <div class="sp"><b>${esc(h.name)}</b> <span class="tiny dimt">${esc(h.vendor)}</span>
         <div class="tiny mut">${esc(h.note)}</div>
-        <div class="tiny" style="color:${h.real ? 'var(--good)' : 'var(--dim)'}">${h.real ? '● runs real inference' : '○ scripted — ' + esc(h.why)}</div></div>
+        <div class="tiny" style="color:${harnessIsReal(h) ? 'var(--good)' : 'var(--dim)'}">${h.real ? '● runs real inference' : harnessIsReal(h) ? '● really runs on this machine, through the local helper' : '○ scripted — ' + esc(h.why) + ', unless the local helper is running'}</div></div>
       ${harness === h.id ? '<span class="pill warn">selected</span>' : ''}</div>`).join('')}</div>
     <label class="f">Model</label>
     <select class="i" id="aModel">${modelOpts()}</select>
@@ -9570,6 +9669,115 @@ async function runTests() {
   });
 
   /* ---- live model ---- */
+  /* The local helper: what turns a working style into an engine. The helper's
+     own guards are attacked from outside in interop/helper-test.mjs; these are
+     Byline's half. Written to fail against the code as it stood, and they did. */
+  const helperStub = (lines, seen) => async (url, init) => {
+    seen.push({ url: String(url), init: init || {} });
+    if (/\/harnesses$/.test(url)) return new Response(JSON.stringify({ helper: 'byline-helper', research: false,
+      harnesses: { 'claude-code': { installed: true, name: 'Claude Code', version: '2.1.76 (Claude Code)', tools: 'none' }, codex: { installed: false, name: 'Codex' } } }), { status: 200 });
+    return new Response(lines.map(l => JSON.stringify(l)).join(String.fromCharCode(10)) + String.fromCharCode(10), { status: 200 });
+  };
+  const withHelper = async (lines, body) => {
+    const hc = HELPER_CFG(), was = JSON.stringify(hc), realFetch = window.fetch, seen = [];
+    const ag = nib, keep = { harness: ag.harness, policy: ag.policy, delegation: ag.delegation }, tStart = now();
+    const wasH = { harnesses: HELPER.harnesses, status: HELPER.status };
+    window.fetch = helperStub(lines, seen);
+    Object.assign(hc, { on: true, url: 'http://127.0.0.1:8127', token: 'helper-token-' + tStart });
+    ag.harness = 'claude-code'; delete ag.delegation; ag.busy = false;
+    if (!desk.members.includes(ag.id)) desk.members.push(ag.id);
+    try { await helperCheck(); await body({ ag, seen, hc }); }
+    finally {
+      window.fetch = realFetch;
+      Object.keys(hc).forEach(k => delete hc[k]); Object.assign(hc, JSON.parse(was));
+      HELPER.harnesses = wasH.harnesses; HELPER.status = wasH.status;
+      Object.keys(keep).forEach(k => { if (keep[k] === undefined) delete ag[k]; else ag[k] = keep[k]; });
+      ag.busy = false;
+      S.messages[desk.id] = msgs(desk.id).filter(m => !(m.ts >= tStart));
+      S.proposals = (S.proposals || []).filter(p => !(p.ts >= tStart));
+      save();
+    }
+  };
+  const OK_RUN = [{ t: 'start', harness: 'claude-code', name: 'Claude Code', tools: 'none' },
+    { t: 'tool', name: 'WebSearch', detail: '{"query":"harbour dredging licence"}' },
+    { t: 'text', text: 'The licence was granted in March; the council minutes say so.' },
+    { t: 'done', tokens: { in: 210, out: 16 }, ms: 1200 }];
+  const ask = ag => postMessage({ channelId: desk.id, authorId: S.meId, text: '@' + ag.handle + ' what do the minutes say?' });
+
+  await t('Local helper', 'the helper can only ever be on this machine', async () => {
+    const hc = HELPER_CFG(), was = hc.url;
+    try {
+      for (const bad of ['https://evil.example', 'http://192.168.1.5:8127', 'http://127.0.0.1.evil.example:8127', 'http://127.0.0.1:8127@evil.example', 'http://127.0.0.1:8127/../x', 'https://127.0.0.1:8127', 'http://[::1]:8127'])
+        { hc.url = bad; eq(helperUrl(), '', 'refused as a helper address — ' + bad + ':'); }
+      for (const good of ['http://127.0.0.1:8127', 'http://localhost:9000', 'http://127.0.0.1:8127/'])
+        { hc.url = good; ok(helperUrl(), 'accepted: ' + good); }
+      hc.url = 'https://evil.example'; hc.on = true;
+      const realFetch = window.fetch; let asked = 0;
+      window.fetch = async () => { asked++; return new Response('{}'); };
+      try { await helperCheck(); let threw = ''; try { await askHelper(nib, { text: 'x', authorId: S.meId }, desk, () => {}, () => {}); } catch (e) { threw = e.message; }
+        eq(asked, 0, 'and nothing is ever sent to an address that is not this machine:'); ok(/this machine/.test(threw), 'it says why: ' + threw); }
+      finally { window.fetch = realFetch; hc.on = false; }
+    } finally { hc.url = was; }
+  });
+  await t('Local helper', 'a correspondent on Claude Code really runs, and its card shows what it really did', async () => {
+    await withHelper(OK_RUN, async ({ ag, seen, hc }) => {
+      ok(harnessIsReal(HARNESSES['claude-code']), 'Claude Code is called real once the helper says it is installed');
+      ok(!harnessIsReal(HARNESSES['codex']), 'and Codex is not, because the helper says it is not');
+      ag.policy = 'always_allow';
+      const t0 = now(); await runAgent(ag, ask(ag), desk);
+      const run = seen.find(x => /\/run$/.test(x.url));
+      ok(run, 'the helper was asked to run it');
+      eq(run.url, 'http://127.0.0.1:8127/run', 'at the address set, on this machine:');
+      eq((run.init.headers || {}).authorization, 'Bearer ' + hc.token, 'with the token:');
+      const sent = JSON.parse(run.init.body);
+      eq(sent.harness, 'claude-code', 'naming the harness:');
+      ok(/what do the minutes say/.test(sent.prompt) && /You are Nib|Nib/.test(sent.system), 'with the desk\u2019s question and the correspondent\u2019s brief');
+      eq(Object.keys(sent).sort().join(','), 'harness,prompt,system', 'and nothing else \u2014 no keys, no settings, no model name a desk could choose:');
+      const filed = msgs(desk.id).filter(m => m.authorId === ag.id && m.ts >= t0);
+      eq(filed.length, 1, 'told to file directly, it files:');
+      ok(filed[0] && /granted in March/.test(filed[0].text) && filed[0].live, 'what the agent actually said, marked as live');
+      ok(filed[0] && (filed[0].activity || []).some(a => a.tool === 'WebSearch' && /dredging/.test(a.detail)), 'and its activity is what it really did, not a script: ' + JSON.stringify((filed[0] || {}).activity || []).slice(0, 160));
+      eq(filed[0] && filed[0].tokens, 226, 'with its real token count:');
+    });
+  });
+  await t('Local helper', 'a real agent is held to the same authority as any live model', async () => {
+    await withHelper(OK_RUN, async ({ ag }) => {
+      delete ag.policy;
+      let t0 = now(), h0 = (S.proposals || []).length; await runAgent(ag, ask(ag), desk);
+      eq(msgs(desk.id).filter(m => m.authorId === ag.id && m.ts >= t0).length, 0, 'never told to file directly, nothing lands on the desk:');
+      ok((S.proposals || []).length > h0, 'its copy waits for you to release it');
+      ag.policy = 'read_only'; ag.busy = false;
+      t0 = now(); h0 = (S.proposals || []).length; await runAgent(ag, ask(ag), desk);
+      eq(msgs(desk.id).filter(m => m.authorId === ag.id && m.ts >= t0).length + ((S.proposals || []).length - h0), 0, 'set to read only, it files and proposes nothing:');
+    });
+  });
+  await t('Local helper', 'when the agent cannot run, the desk is told why and what to do', async () => {
+    await withHelper([{ t: 'start', harness: 'claude-code' }, { t: 'error', why: 'it started and then said nothing for 60 seconds',
+      hint: 'Claude Code started and then said nothing. It is usually not signed in: run `claude` in a terminal, type /login, and try again.' }], async ({ ag }) => {
+      ag.policy = 'always_allow';
+      const t0 = now(); await runAgent(ag, ask(ag), desk);
+      const note = msgs(desk.id).find(m => m.kind === 'system' && m.ts >= t0 && /Claude Code/.test(m.text));
+      ok(note, 'a system line names the harness that failed');
+      ok(note && /said nothing/.test(note.text) && /\/login/.test(note.text), 'with the reason and the remedy: ' + (note ? note.text.slice(0, 140) : ''));
+      ok(msgs(desk.id).some(m => m.authorId === ag.id && m.ts >= t0 && !m.live), 'and the correspondent falls back to its written reply, not marked live');
+    });
+  });
+  await t('Local helper', 'the helper\u2019s token is kept under the same lock as the keys', async () => {
+    const hc = HELPER_CFG(), was = hc.token, pass = 'helper lock ' + now();
+    const stash = Object.values(S.people).map(p => [p, p.jwk, p.nextJwk]);
+    hc.token = 'helper-WRAPME-' + now(); const tk = hc.token;
+    try {
+      await lockKeys(pass); save();
+      ok((localStorage.getItem(KEY) || '').indexOf(tk) < 0, 'it is not in storage once the masthead is locked');
+      eq(secret('helperToken'), tk, 'while this session can still use it:');
+      ok(JSON.stringify(publicState()).indexOf(tk) < 0, 'and it is not in what a peer receives');
+    } finally {
+      try { if (S.lock && S.lock.on) await dropLock(pass); } catch (e) { }
+      stash.forEach(([p, jwk, nx]) => { delete p.enc; if (jwk) p.jwk = jwk; delete p.nextEnc; if (nx) p.nextJwk = nx; });
+      delete S.lock; KEK = null; _kc.clear(); NOSTR_KEYS.clear(); SECRETS.clear();
+      hc.token = was; delete hc.tokenEnc; save();
+    }
+  });
   await t('Live model', 'an unreachable endpoint falls back to written copy', async () => {
     const realFetch = window.fetch;
     window.fetch = () => Promise.reject(new Error('Failed to fetch'));
@@ -12642,6 +12850,7 @@ function boot() {
     }
     initSync();
     if (!TESTING) { const adv = lockAdvice(location.protocol); if (adv.offer) setTimeout(() => offerLock(adv), 1800); }
+    if (!TESTING && HELPER_CFG().on) helperCheck().then(() => render());
     backfillDids().then(async ok => {                            // pre-did:key workspaces get identifiers
       if (ok) render();
       /* and every key that has not yet promised a successor does so now */
