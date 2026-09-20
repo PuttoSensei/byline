@@ -111,7 +111,7 @@ const MUTATIONS = [
   /* ---- round two: the guards the first eighteen never touched ---- */
   { id: 'record-hash-unchecked', group: 'The record',
     what: 'an entry whose contents no longer match its hash is accepted',
-    find: "if (!e.redacted && e.dataHash && e.dataHash !== dataHashOf(e.data))",
+    find: "if (!e.redacted && e.dataHash && e.dataHash !== dataHashOf(e.data, e.v))",
     to: "if (false)" },
 
   { id: 'record-link-unchecked', group: 'The record',
@@ -238,6 +238,67 @@ const MUTATIONS = [
     what: 'the multicodec header is no longer written into a did:key',
     find: "framed[0] = 0x80; framed[1] = 0x24;",
     to: "framed[0] = 0x81; framed[1] = 0x24;" },
+
+  /* ---- the v2 record, the audience, the inflation ceiling ---- */
+  { id: 'record-still-written-v1', group: 'The record',
+    what: 'new entries are written in the legacy 96-bit format',
+    find: "  const ev = { v: 2, id: uid('ev'), kind,",
+    to: "  const ev = { id: uid('ev'), kind," },
+
+  { id: 'v2-numbering-unchecked', group: 'The record',
+    what: 'a v2 record with a number skipped walks clean as long as its hashes agree',
+    find: "if (isV2(before) && e.seq !== before.seq + 1) return",
+    to: "if (false) return" },
+
+  { id: 'legacy-after-v2-accepted', group: 'The record',
+    what: 'a legacy entry may follow a v2 one, so an editor can go back to the weak hash',
+    find: "      if (isV2(before)) return { ok: false, at: i, of: chrono.length, why: 'a legacy entry follows",
+    to: "      if (false) return { ok: false, at: i, of: chrono.length, why: 'a legacy entry follows" },
+
+  { id: 'unknown-record-format-read-as-legacy', group: 'The record',
+    what: 'an entry claiming a format this build has never heard of is walked as if it were legacy',
+    find: "if (e.v !== undefined && e.v !== 2) return",
+    to: "if (false) return" },
+
+  { id: 'v2-seal-by-any-key', group: 'The record',
+    what: 'a v2 seal verifies under whatever did the entry names, whoever the page says filed it',
+    find: "    if (!theirs) return false;",
+    to: "" },
+
+  { id: 'v2-seal-accepts-line-signature', group: 'The record',
+    what: 'a v2 seal is checked over the same bytes a filed line is signed over, so one can be replayed as the other',
+    find: "const sealBodyV2 = ev => encU(SEAL_V2 + '\\n' + jcs(ev.chain));",
+    to: "const sealBodyV2 = ev => encU(signBody({ id: ev.chain, channelId: '', authorId: ev.actorId, text: ev.chain, kind: 'seal', ts: ev.ts }));" },
+
+  { id: 'revoked-key-still-seals', group: 'The record',
+    what: 'a key seals entries dated after it was revoked',
+    find: "  if (isRevoked(a, ev.ts)) return false;",
+    to: "" },
+
+  { id: 'sha256-wrong-on-a-boundary', group: 'The record',
+    what: 'the synchronous SHA-256 pads one block short when the length lands on a boundary',
+    find: "n = ((l + 8) >> 6) + 1;",
+    to: "n = ((l + 7) >> 6) + 1;" },
+
+  { id: 'audience-grants-anywhere', group: 'Delegation',
+    what: 'a delegation issued for another masthead grants authority on this one',
+    find: "    if (v.ok && !v.here) return { scope: [], from: 'broken',",
+    to: "    if (false) return { scope: [], from: 'broken'," },
+
+  { id: 'audience-checked-at-the-leaf-only', group: 'Delegation',
+    what: 'a parent made for somewhere else is brought here by hanging a local child beneath it',
+    find: "audience, here: here && up.here };",
+    to: "audience, here };" },
+
+  { id: 'audience-follows-the-title', group: 'Delegation',
+    what: 'the accepted audiences are recomputed from the masthead title, which a peer can change',
+    find: "  if (!Array.isArray(w.audiences) || !w.audiences.length || w.audiences.some(x => typeof x !== 'string')) {",
+    to: "  if (true) {" },
+
+  { id: 'status-list-inflates-without-limit', group: 'Withdrawal',
+    what: 'a gzipped withdrawal list is inflated to whatever size it claims',
+    find: "      if (size > (SL_MAX_INDEX >> 3)) {",
+    to: "      if (false) {" },
 ];
 
 rmSync(OUT, { recursive: true, force: true });

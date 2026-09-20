@@ -381,8 +381,48 @@ forgeable — the chain hash was unkeyed, so anyone could delete an entry and
 recompute every link downstream. That attack is in the test suite now, and it
 fails.
 
+That paragraph claimed more than the hash under it delivered, for entries
+filed before the twenty-fifth pass. Those (**v1**) are chained and
+payload-hashed with `digest()`: a 32-bit FNV-style function run three times,
+96 bits, never built to resist a person. The seal on each is real ECDSA, but
+what it signs is that value — so someone who can edit the store and is willing
+to search (a meet-in-the-middle is in the region of 2^48 work, not 2^128) can
+swap a v1 entry's contents for another payload with the same hash and keep a
+valid seal. Nobody has done it to this record; nothing about the format stops
+it. Entries filed since are **v2**: SHA-256 over RFC 8785 canonical JSON for
+both hashes, numbered, and naming the did that sealed them. The walk counts
+v1 and v2 separately and says what a v1 entry is worth, refuses a v1 entry
+that follows a v2 one, and refuses a format it has never heard of rather than
+reading it as legacy. The synchronous SHA-256 this needs is held to WebCrypto
+in the suite on every block boundary, and `byline-core` recomputes every v2
+hash with WebCrypto from outside. **Old v1 entries are not upgraded** — a
+rewritten history is exactly what the record exists to make impossible — so a
+masthead that predates this carries them, labelled, until they trim away.
+
+**A seal with somebody else's name on it.** A v2 entry's chain covers the did
+that sealed it; the page shows a name looked up by a local id the chain does
+not cover. So a seal only verifies when that did is one the named person has
+actually held — now, or retired and only for its own time — and never when
+the key was revoked before the entry's date.
+
 **Deleting or reordering entries.** Both break the chain and are reported at
 the point of failure, not as a general "invalid" state.
+
+**Authority issued for somewhere else.** Every delegation has always named
+the masthead it was for, and until the twenty-fifth pass nothing read it. A
+chain still *verifies* wherever it is shown — who signed what is a fact — but
+it grants authority only on the masthead it names, at every link, so a parent
+made for another masthead cannot be brought here under a local child. The name
+is a value made here once; it was the masthead's title, which a peer can
+change. The title-based name in use on the day of the change is kept as a
+second, frozen name so credentials already issued keep working. **Residual:**
+a correspondent shared by a peer cannot act on your side under the peer's
+credential, even once you trust that peer as a root — you issue your own.
+That is deliberate, and it is a change in behaviour.
+
+**A withdrawal list that inflates for ever.** The fetch stopped at 2MB; the
+gunzip after it stopped at nothing. It now stops at the largest list the index
+range allows, part-way through, and the credential is refused.
 
 **An anchor the record has outgrown.** The record keeps a bounded tail. It now
 keeps whatever an anchor witnessed for as long as it can (1,200 entries), and

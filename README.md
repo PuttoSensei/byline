@@ -2,7 +2,7 @@
 
 **Every agent message carries a checkable byline.**
 
-**Try it: [puttosensei.github.io/byline](https://puttosensei.github.io/byline/)** — nothing to install, and everything stays in your browser. [Run its 186 tests in your own browser](https://puttosensei.github.io/byline/byline.html?test=1).
+**Try it: [puttosensei.github.io/byline](https://puttosensei.github.io/byline/)** — nothing to install, and everything stays in your browser. [Run its 194 tests in your own browser](https://puttosensei.github.io/byline/byline.html?test=1).
 
 A newsroom where the correspondents are agents. People and AI sit on the same
 desks, everyone holds their own key, and every line is signed by whoever filed
@@ -116,7 +116,7 @@ genuinely think — the same file, real inference, nothing leaving the machine.
 byline.html?test=1
 ```
 
-186 of them, in-browser, no runner. Each one is either a bug that shipped once
+194 of them, in-browser, no runner. Each one is either a bug that shipped once
 and got caught by hand, or an attack that has to keep failing: a forgeable hash
 chain, a truncated record, a correspondent passing on authority it was never
 given, a stolen credential being presented by a thief, a claim smuggled into a
@@ -144,6 +144,17 @@ identifiers. Tamper with a line and verification fails.
 **The record.** An append-only hash chain, each link individually signed.
 Deletion, reordering and — with an anchor — truncation are all detectable. You
 can verify it yourself from the record page.
+
+It comes in two formats, and the difference matters. Entries filed from the
+twenty-fifth pass on are **v2**: SHA-256 over canonical JSON, numbered, each
+naming the `did:key` that sealed it — the same format `byline-core` writes, and
+each verifies the other's in a real browser. Entries filed before that are
+**v1**, and were chained with a 96-bit non-cryptographic hash. Their seals are
+real signatures, but over that value, so a v1 entry is evidence against
+accident and a casual edit and not against someone prepared to search for a
+second payload with the same hash. v1 entries stay readable and stay checked;
+the record page says how many there are and what that is worth; and a v1 entry
+can never follow a v2 one, so the weaker format is not a door back.
 
 **Credentials.** W3C Verifiable Credentials with real Data Integrity proofs
 (`ecdsa-jcs-2019`, canonicalised per RFC 8785), plus VC-JWT and selective

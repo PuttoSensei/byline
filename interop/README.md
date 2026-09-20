@@ -104,7 +104,7 @@ fail for the reason it claims to exist.
 ## And the same exercise on the app's own suite
 
 ```bash
-node falsify-app.mjs      # writes 39 mutants of byline.html to ../_mutants/
+node falsify-app.mjs      # writes 51 mutants of byline.html to ../_mutants/
 python run-mutants.py     # runs them headlessly; exit code = mutants not killed
 ```
 
@@ -210,6 +210,23 @@ diff rather than just failing.
 The canonical bytes and this signature are frozen into Byline's own test suite
 (`byline.html?test=1`, under *Interop*). If Byline's implementation ever drifts
 off the standard, that test fails at home rather than in someone else's verifier.
+
+### Round three: the v2 record, the audience, the inflation ceiling
+
+Twelve mutants for the twenty-fifth pass's guards, and `record-hash-unchecked`
+re-aimed at the version-aware call. **13 of 13 killed, each by the assertion
+written for it** — read from the FAIL line, not assumed from the exit code:
+a record still written as v1, a skipped number with consistent hashes, a v1
+entry after a v2 one, an unknown format read as legacy, a v2 seal under a key
+the named person never held, a line signature replayed as a seal, a revoked key
+still sealing, SHA-256 padded one block short on a boundary (caught at `a × 56`),
+authority granted for another masthead, the audience checked at the leaf only,
+the accepted audiences following the title, and a list inflated without limit.
+
+Only these thirteen were run for this pass, not all 51: the other 38 aim at
+code this pass did not touch, the generator accepted every needle (0 rejected,
+so none went stale), and a full run is most of an hour. Run them all before a
+release.
 
 ## The relay
 

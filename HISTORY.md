@@ -1029,3 +1029,64 @@ set run headlessly rather than in an iframe for the first time.
 
 Verified in **Firefox 156 and Chrome 153, 186 pass, 0 fail each, at a desktop window and at a phone window**. Edge was not run: headless Edge on the
 build machine exits at once, on a bare `data:` page as readily as on Byline.
+
+### The twenty-fifth pass: the rest of what the second thing found
+
+The same outside read that found the forged issuer found four more, and the
+other session left them alone on request so that two patch loops did not fight
+over one file and one CSP hash. They were done here, on top of its work, after
+it handed the file over.
+
+**The record's hash was not a cryptographic one.** `digest()` is 32-bit FNV-1a
+run three times with different seeds. It was written for the first, unsigned
+bylines and never replaced when the chain was built on it. Every link's seal
+was real ECDSA — over a 96-bit value that a determined editor can collide. The
+README said "append-only hash chain, each link individually signed", which was
+true and sounded like more than it was. New entries are v2: SHA-256 over
+canonical JSON, numbered, naming the did that sealed them. `logEvent` is
+synchronous and called from everywhere, and WebCrypto's digest is a promise,
+so the file now carries FIPS 180-4 itself — checked against Node's on 410
+inputs before it went in, held to WebCrypto in the suite on every block
+boundary in four alphabets, and recomputed with WebCrypto by `byline-core`
+from the other side of a frame. v1 entries are not rewritten: they are
+counted, labelled with what they are worth on the record page, and refused if
+one ever follows a v2 entry. The two tests that play an editor deleting an
+entry and recomputing the hashes had to learn to renumber as well, because the
+first run said so: eight failures, all downstream of a record one of them had
+left with a gap in it.
+
+**The format is `byline-core`'s, exactly.** That was the point of doing it
+now. `byline-core/browser/compat.html` frames this file — the real one, under
+its own CSP, taken through its own onboarding — and in Firefox, Chrome and
+Edge each side verifies entries the other wrote and sealed, catches an edit, a
+change to a field only the link covers, and a missing entry, and both read the
+same fingerprint off the same anchor. 32 checks, both directions, no fixtures.
+
+**`audience` was written into every delegation and never read.** Now a chain
+grants authority only on the masthead it names, at every link. It still
+verifies elsewhere, because that is what "Check a credential" is for. The
+name was the masthead's title — which `applyPeerOp` takes from a peer — so it
+is now a value minted here, with the old title-based name kept, frozen, for
+credentials already issued.
+
+**A status list inflated without a ceiling.** 24MB of zeros is 23KB of gzip;
+it is now refused part-way.
+
+**A revoked key could still seal.** The twenty-fourth pass noticed `verifySeal`
+did not ask `isRevoked` the way `verifyReal` does, and did not change it. It
+does now, for both formats.
+
+Twelve mutants for the new guards and one re-aimed; their verdicts are in
+`interop/README.md`. 194 tests. Verified in **Firefox 156 and Chrome 153, 194
+pass, 0 fail each, at a desktop window and at a phone window**. Edge does not
+start under `run-suite.py` on this machine — but it does under `byline-core`'s
+runner, which launches it without `--disable-features`, and there it framed
+this file and passed all 32 compatibility checks. So Edge has run this file's
+verifier and record code; it has not run this file's suite.
+
+Not done: nothing upgrades or re-seals v1 entries, by design. The record page
+says "legacy" in one sentence, not per row. `e.sig` in the record table is
+still the old keyed digest, shown in green beside entries whose real seal is
+elsewhere. And the hole the twenty-fourth pass wrote down — a peer rewriting a
+held correspondent's instructions — is still open, still waiting on a decision
+about what two of one person's machines should sync.

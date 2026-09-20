@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-2fhCtlfUwZldvQZtdvs35MXiNpAkWqTiv+LmT+ECT+c='; style-src 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: data:; connect-src *; font-src 'self' data:; worker-src 'self' blob:; manifest-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-N6W8xVKo315bWFi36kbgESbbzFwXbp5ZghUX+twBBE0='; style-src 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: data:; connect-src *; font-src 'self' data:; worker-src 'self' blob:; manifest-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#0d0d0e">
 <link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22Byline%22%2C%22short_name%22%3A%22Byline%22%2C%22description%22%3A%22A%20signed%20newsroom%20where%20AI%20correspondents%20work%20alongside%20people.%22%2C%22start_url%22%3A%22.%22%2C%22scope%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%230d0d0e%22%2C%22theme_color%22%3A%22%230d0d0e%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%2C%253Csvg%2520xmlns%253D%2522http%253A%252F%252Fwww.w3.org%252F2000%252Fsvg%2522%2520viewBox%253D%25220%25200%2520512%2520512%2522%253E%253Crect%2520width%253D%2522512%2522%2520height%253D%2522512%2522%2520rx%253D%252296%2522%2520fill%253D%2522%25230d0d0e%2522%252F%253E%253Ctext%2520x%253D%2522256%2522%2520y%253D%2522352%2522%2520text-anchor%253D%2522middle%2522%2520font-family%253D%2522Georgia%252Cserif%2522%2520font-size%253D%2522300%2522%2520font-weight%253D%2522700%2522%2520fill%253D%2522%2523e8412f%2522%253EB%253C%252Ftext%253E%253C%252Fsvg%253E%22%2C%22sizes%22%3A%22any%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%2C%22purpose%22%3A%22any%22%7D%5D%7D">
@@ -3269,8 +3269,26 @@ async function slDecode(encoded) {
   if (bytes[0] === 0x1f && bytes[1] === 0x8b) {
     if (typeof DecompressionStream !== 'function') throw new Error('is gzipped and this engine cannot inflate it');
     const ds = new DecompressionStream('gzip');
-    const w = ds.writable.getWriter(); w.write(bytes); w.close();
-    bytes = new Uint8Array(await new Response(ds.readable).arrayBuffer());
+    const w = ds.writable.getWriter(); w.write(bytes).catch(() => { }); w.close().catch(() => { });
+    /* The fetch that brought this here stops at 2MB. Inflation did not stop at
+       anything: 2MB of gzip is gigabytes of zeros, read whole into memory by
+       whoever checks the credential, before a single byte is looked at. The
+       largest honest list is SL_MAX_INDEX bits, so reading stops there. */
+    const reader = ds.readable.getReader(), chunks = [];
+    let size = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.length;
+      if (size > (SL_MAX_INDEX >> 3)) {
+        try { await reader.cancel(); } catch (e) { }
+        throw new Error('inflates past the largest list this verifier will hold');
+      }
+      chunks.push(value);
+    }
+    bytes = new Uint8Array(size);
+    let at = 0;
+    for (const c of chunks) { bytes.set(c, at); at += c.length; }
   }
   return bytes;
 }
@@ -3421,12 +3439,32 @@ function delegationCredential(principal, agent, scope, days, parent) {
       id: agent.did, name: agent.name,
       authorisedBy: principal.did, authorisedByName: principal.name,
       scope: scope.slice(),
-      audience: 'urn:byline:masthead:' + (S.workspace.id || S.workspace.name),
+      audience: audiencesHere()[0],
       parentCredential: parent || null,
     },
   };
 }
 const isDelegation = vc => !!vc && [].concat(vc.type || []).indexOf('BylineDelegationCredential') >= 0;
+
+/* Every delegation has always said which masthead it was for, and nothing has
+   ever read it. With one masthead in one file there was nowhere else to show a
+   credential; with trusted roots elsewhere, and a library that lets a server
+   speak this format, there is. So: a chain still *verifies* wherever it is
+   shown — who signed what is a fact — but it grants authority only on the
+   masthead it names, at every link.
+   The name used to be the masthead's title, which a peer can change. It is
+   now a value made here once and never taken from a peer or a title. The
+   title-based name this masthead was using on the day it moved is kept as a
+   second accepted name, frozen, so credentials already issued keep working. */
+function audiencesHere() {
+  const w = S.workspace;
+  if (!Array.isArray(w.audiences) || !w.audiences.length || w.audiences.some(x => typeof x !== 'string')) {
+    const before = 'urn:byline:masthead:' + (w.id || w.name);
+    if (typeof w.aud !== 'string' || !w.aud) w.aud = toHex(crypto.getRandomValues(new Uint8Array(12)));
+    w.audiences = ['urn:byline:masthead:' + w.aud, before];
+  }
+  return w.audiences;
+}
 
 /* Walks the chain to its root. Every link must verify on its own, must have
    been issued by whoever the link above it named, and must not claim any
@@ -3445,17 +3483,19 @@ async function verifyDelegation(vc, depth) {
   const sub = vc.credentialSubject || {};
   const scope = [].concat(sub.scope || []);
   const parent = sub.parentCredential;
+  const audience = typeof sub.audience === 'string' ? sub.audience : null;
+  const here = audience !== null && audiencesHere().indexOf(audience) >= 0;
   if (!parent) {
     const root = Object.values(S.people).find(p => p.did === issuer);
     if (root) {
       if (root.type === 'agent') return { ok: false, why: 'a correspondent cannot be the root of its own authority' };
       if (!canRoot(root)) return { ok: false, why: root.name + ' is in this masthead, but you have not said they may grant authority here' };
-      return { ok: true, scope, depth, root: root.name, holder: sub.name, foreign: false };
+      return { ok: true, scope, depth, root: root.name, holder: sub.name, foreign: false, audience, here };
     }
     /* A chain rooted somewhere else can still be checked — but only if you
        have said, in as many words, that you trust that root. */
     const trusted = trustedRoots().find(r => r.did === issuer);
-    if (trusted) return { ok: true, scope, depth, root: trusted.name, holder: sub.name, foreign: true };
+    if (trusted) return { ok: true, scope, depth, root: trusted.name, holder: sub.name, foreign: true, audience, here };
     return { ok: false, why: 'this chain is rooted in ' + issuer.slice(0, 30) + '…, which you have not said you trust' };
   }
   const up = await verifyDelegation(parent, depth + 1);
@@ -3469,7 +3509,9 @@ async function verifyDelegation(vc, depth) {
   if (over.length) return { ok: false, why: 'it claims authority never granted to it: ' + over.join(', ') };
   if (parent.validUntil && vc.validUntil && Date.parse(vc.validUntil) > Date.parse(parent.validUntil))
     return { ok: false, why: 'it outlives the authority it came from' };
-  return { ok: true, scope, depth: up.depth, root: up.root, holder: sub.name, via: parent.credentialSubject.name };
+  /* every link, not only the last: a parent made for somewhere else cannot be
+     brought here by hanging a local child beneath it */
+  return { ok: true, scope, depth: up.depth, root: up.root, holder: sub.name, via: parent.credentialSubject.name, audience, here: here && up.here };
 }
 
 /* What a correspondent may actually do right now. A valid credential governs;
@@ -3478,6 +3520,7 @@ async function verifyDelegation(vc, depth) {
 async function effectiveScope(a) {
   if (a.delegation) {
     const v = await verifyDelegation(a.delegation);
+    if (v.ok && !v.here) return { scope: [], from: 'broken', why: 'its authority was issued for ' + (v.audience || 'no masthead in particular') + ', not for this one' };
     if (v.ok) return { scope: v.scope, from: 'credential', root: v.root, depth: v.depth, via: v.via };
     return { scope: [], from: 'broken', why: v.why };
   }
@@ -3986,6 +4029,7 @@ function hydrate(st, clearBusy) {
   st.workspace = (st.workspace && typeof st.workspace === 'object') ? st.workspace : {};
   if (typeof st.workspace.name !== 'string' || !st.workspace.name) st.workspace.name = 'This masthead';
   if (typeof st.workspace.handle !== 'string') st.workspace.handle = 'masthead';
+  if (st.workspace.audiences !== undefined && (!Array.isArray(st.workspace.audiences) || st.workspace.audiences.some(x => typeof x !== 'string' || x.length > 200) || st.workspace.audiences.length > 8)) delete st.workspace.audiences;
   st.messages = (st.messages && typeof st.messages === 'object' && !Array.isArray(st.messages)) ? st.messages : {};
   Object.keys(st.messages).forEach(k => {
     if (!Array.isArray(st.messages[k])) { st.messages[k] = []; return; }
@@ -4812,15 +4856,78 @@ steps:
 /* The chain covers a *hash* of the payload, not the payload itself. That is what
    makes an entry redactable: clear the content for an erasure request and the
    hash — and therefore every link after it — still verifies. */
-const dataHashOf = d => digest('data:' + JSON.stringify(d == null ? {} : d), 24);
-const chainOf = e => digest('chain:' + (e.prev || 'genesis') + '|' + e.kind + '|' +
-  (e.dataHash || dataHashOf(e.data)) + '|' + e.ts + '|' + e.actorId, 24);
+/* Two formats, told apart by `v`.
+   v1 — no `v` — is what this file wrote until now. Its hashes come from
+   digest(): a 32-bit FNV-style function run three times, 96 bits of something
+   never built to resist a person. The seal on a v1 link is real ECDSA, but it
+   signs that 96-bit value, so it binds the entry only as far as the hash
+   does: enough against accident and a casual edit, not against someone
+   willing to search for a second payload with the same hash. v1 entries stay
+   readable and stay checked, and every verdict says how many there are.
+   v2 is SHA-256 over canonical JSON (RFC 8785), names the sealing key by did
+   so the entry carries what is needed to check it, and numbers its entries.
+   It is byline-core's record format exactly; each verifies the other's.
+   A v1 entry may not follow a v2 one: otherwise "legacy" would be a door
+   anyone rewriting the record could walk back through. */
+const SHA_K = new Uint32Array([
+  0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+  0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+  0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+  0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2]);
+/* SHA-256, synchronously. The record is written from everywhere and written
+   at once; WebCrypto's digest is a promise. This is FIPS 180-4 as printed, and
+   it is not trusted for that: the suite holds it to WebCrypto on the block
+   boundaries, and byline-core recomputes every v2 hash it makes with
+   WebCrypto from the other side. */
+function sha256hex(str) {
+  const msg = encU(String(str)), l = msg.length, n = ((l + 8) >> 6) + 1;
+  const buf = new Uint8Array(n * 64), dv = new DataView(buf.buffer), w = new Int32Array(64);
+  buf.set(msg); buf[l] = 0x80;
+  dv.setUint32(n * 64 - 8, Math.floor(l / 0x20000000)); dv.setUint32(n * 64 - 4, (l << 3) >>> 0);
+  const H = new Int32Array([0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19]);
+  for (let i = 0; i < n; i++) {
+    for (let t = 0; t < 16; t++) w[t] = dv.getInt32(i * 64 + t * 4);
+    for (let t = 16; t < 64; t++) {
+      const x = w[t - 15], y = w[t - 2];
+      const s0 = ((x >>> 7) | (x << 25)) ^ ((x >>> 18) | (x << 14)) ^ (x >>> 3);
+      const s1 = ((y >>> 17) | (y << 15)) ^ ((y >>> 19) | (y << 13)) ^ (y >>> 10);
+      w[t] = (w[t - 16] + s0 + w[t - 7] + s1) | 0;
+    }
+    let a = H[0], b = H[1], c = H[2], d = H[3], e = H[4], f = H[5], g = H[6], h = H[7];
+    for (let t = 0; t < 64; t++) {
+      const S1 = ((e >>> 6) | (e << 26)) ^ ((e >>> 11) | (e << 21)) ^ ((e >>> 25) | (e << 7));
+      const t1 = (h + S1 + ((e & f) ^ (~e & g)) + SHA_K[t] + w[t]) | 0;
+      const S0 = ((a >>> 2) | (a << 30)) ^ ((a >>> 13) | (a << 19)) ^ ((a >>> 22) | (a << 10));
+      const t2 = (S0 + ((a & b) ^ (a & c) ^ (b & c))) | 0;
+      h = g; g = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0;
+    }
+    H[0] += a; H[1] += b; H[2] += c; H[3] += d; H[4] += e; H[5] += f; H[6] += g; H[7] += h;
+  }
+  let out = ''; for (let i = 0; i < 8; i++) out += (H[i] >>> 0).toString(16).padStart(8, '0');
+  return out;
+}
+const RECORD_V1_NOTE = 'chained with a 96-bit non-cryptographic hash: evidence against accident, not against a determined editor';
+const SEAL_V2 = 'byline:record:seal:v2';
+const isV2 = e => !!e && e.v === 2;
+const sealBodyV2 = ev => encU(SEAL_V2 + '\n' + jcs(ev.chain));
+const dataHashOf = (d, v) => v === 2 ? 'sha256:' + sha256hex(jcs(d == null ? {} : d))
+  : digest('data:' + JSON.stringify(d == null ? {} : d), 24);
+const chainOf = e => isV2(e)
+  ? 'sha256:' + sha256hex(jcs({ v: 2, seq: e.seq, prev: e.prev, kind: e.kind, ts: e.ts, actor: e.actor, dataHash: e.dataHash || dataHashOf(e.data, 2) }))
+  : digest('chain:' + (e.prev || 'genesis') + '|' + e.kind + '|' + (e.dataHash || dataHashOf(e.data)) + '|' + e.ts + '|' + e.actorId, 24);
 
 function logEvent(kind, data, actorId) {
   const a = actorId || S.meId;
-  const ev = { id: uid('ev'), kind, data: data || {}, ts: now(), actorId: a };
-  ev.dataHash = dataHashOf(ev.data);          // the chain covers this, so the payload stays redactable
-  ev.prev = S.events.length ? S.events[0].chain || 'genesis' : 'genesis';
+  const who = S.people[a];
+  /* through JSON and back, so what is hashed is exactly what storage will hand
+     back: a Date or an undefined in the payload would otherwise hash one way
+     today and another after a reload */
+  const ev = { v: 2, id: uid('ev'), kind, data: JSON.parse(JSON.stringify(data || {})), ts: now(), actorId: a,
+    actor: (who && typeof who.did === 'string' && who.did) || 'urn:byline:local:' + a };
+  const last = S.events.length ? S.events[0] : null;
+  ev.seq = last ? (isV2(last) && last.seq >= 0 ? last.seq + 1 : S.events.filter(e => e.chain).length) : 0;
+  ev.dataHash = dataHashOf(ev.data, 2);       // the chain covers this, so the payload stays redactable
+  ev.prev = last ? last.chain || 'genesis' : 'genesis';
   ev.chain = chainOf(ev);
   ev.sig = digest('sig:' + ((S.people[a] || {}).sec || 'sys') + ':' + kind + JSON.stringify(ev.data) + ev.ts, 24);
   S.events.unshift(ev);
@@ -4844,12 +4951,35 @@ function logEvent(kind, data, actorId) {
 async function sealEvent(ev) {
   const a = S.people[ev.actorId];
   if (!a || !hasPriv(a) || !SUBTLE) return;
-  try { ev.seal = await signReal({ id: ev.chain, channelId: '', authorId: ev.actorId, text: ev.chain, kind: 'seal', ts: ev.ts }, a); }
-  catch (e) { /* unsealed entries are reported by the verifier, not hidden */ }
+  try {
+    if (isV2(ev)) {
+      /* sealed by the did the chain names, or not at all: a key rotated in the
+         instant between filing and sealing must not seal under the old name */
+      if (a.did !== ev.actor) return;
+      ev.seal = toHex(await SUBTLE.sign(ECSIG, await _priv(a), sealBodyV2(ev)));
+    } else ev.seal = await signReal({ id: ev.chain, channelId: '', authorId: ev.actorId, text: ev.chain, kind: 'seal', ts: ev.ts }, a);
+  } catch (e) { /* unsealed entries are reported by the verifier, not hidden */ }
 }
 async function verifySeal(ev) {
   const a = S.people[ev.actorId];
   if (!ev.seal || !a || !a.pubJwk || !SUBTLE) return null;
+  /* the same rule verifyReal applies to copy: a key revoked at noon does not
+     seal what is dated one o'clock, whoever is holding it now */
+  if (isRevoked(a, ev.ts)) return false;
+  if (isV2(ev)) {
+    /* The chain covers the did that sealed the entry; the page shows a name
+       looked up by actorId, which the chain does not cover. So the did has to
+       be one this person has actually held — now, or retired and only for its
+       own time — or an editor could put a colleague's name on their own seal. */
+    const theirs = a.did === ev.actor || (a.retired || []).some(r => r.did === ev.actor && ev.ts <= r.until);
+    if (!theirs) return false;
+    try {
+      const jwk = String(ev.actor).indexOf('did:key:') === 0 ? jwkFromDidKey(ev.actor)
+        : (a.did === ev.actor ? a.pubJwk : ((a.retired || []).find(r => r.did === ev.actor) || {}).pubJwk);
+      const k = await SUBTLE.importKey('jwk', { kty: jwk.kty, crv: jwk.crv, x: jwk.x, y: jwk.y }, ECDSA, false, ['verify']);
+      return await SUBTLE.verify(ECSIG, k, unHex(ev.seal), sealBodyV2(ev));
+    } catch (e) { return false; }
+  }
   let sig, body;
   try {
     sig = unHex(ev.seal);
@@ -4891,20 +5021,30 @@ function verifyRecord(events) {
   const list = events || S.events;
   const chrono = list.slice().reverse().filter(e => e.chain);
   const legacy = list.length - chrono.length;
-  if (!chrono.length) return { ok: true, checked: 0, legacy, note: 'nothing chained yet' };
-  let prev = chrono[0].prev;
+  if (!chrono.length) return { ok: true, checked: 0, legacy, v1: 0, v2: 0, note: 'nothing chained yet' };
+  let prev = chrono[0].prev, v1 = 0, v2 = 0, before = null;
   for (let i = 0; i < chrono.length; i++) {
     const e = chrono[i];
     if (e.prev !== prev) return { ok: false, at: i, of: chrono.length, why: 'an entry is missing or out of order', kind: e.kind, legacy };
+    if (e.v !== undefined && e.v !== 2) return { ok: false, at: i, of: chrono.length, why: 'an entry is in a format this build does not know (v' + String(e.v).slice(0, 8) + ')', kind: e.kind, legacy };
+    if (isV2(e)) {
+      if (isV2(before) && e.seq !== before.seq + 1) return { ok: false, at: i, of: chrono.length, why: 'an entry is missing or out of order', kind: e.kind, legacy };
+      v2++;
+    } else {
+      if (isV2(before)) return { ok: false, at: i, of: chrono.length, why: 'a legacy entry follows a v2 one — the record does not go back to the weaker format', kind: e.kind, legacy };
+      v1++;
+    }
+    before = e;
     /* the chain covers the payload's hash, so the hash must still match the
        payload — otherwise the contents could be rewritten under a stale hash.
        A redacted entry is the one exception: its payload is cleared on purpose. */
-    if (!e.redacted && e.dataHash && e.dataHash !== dataHashOf(e.data))
+    if (isV2(e) && !e.dataHash) return { ok: false, at: i, of: chrono.length, why: 'an entry\'s contents no longer match its hash', kind: e.kind, legacy };
+    if (!e.redacted && e.dataHash && e.dataHash !== dataHashOf(e.data, e.v))
       return { ok: false, at: i, of: chrono.length, why: 'an entry\'s contents no longer match its hash', kind: e.kind, legacy };
     if (chainOf(e) !== e.chain) return { ok: false, at: i, of: chrono.length, why: 'an entry was altered after it was filed', kind: e.kind, legacy };
     prev = e.chain;
   }
-  return { ok: true, checked: chrono.length, legacy };
+  return Object.assign({ ok: true, checked: chrono.length, legacy, v1, v2 }, v1 ? { v1note: RECORD_V1_NOTE } : {});
 }
 
 /* ==========================================================================
@@ -6928,7 +7068,8 @@ function renderAuditPage(host) {
     const sealBit = s.broken.length
       ? `<b>${s.broken.length} seal${s.broken.length === 1 ? '' : 's'} do not match</b>`
       : `${s.sealed} sealed with a private key${s.unsealed ? `, ${s.unsealed} unsealed` : ''}`;
-    msg.innerHTML = `${good ? '●' : '⚠'} ${chainBit} · ${sealBit}${r.legacy ? ` · ${r.legacy} filed before chaining` : ''}`;
+    const v1Bit = r.ok && r.v1 ? ` · <span title="${esc(RECORD_V1_NOTE)}">${r.v1} of them legacy (v1) — ${esc(RECORD_V1_NOTE)}; everything filed from now on is v2, SHA-256</span>` : '';
+    msg.innerHTML = `${good ? '●' : '⚠'} ${chainBit} · ${sealBit}${v1Bit}${r.legacy ? ` · ${r.legacy} filed before chaining` : ''}`;
     btn.textContent = 'Verify the chain'; btn.disabled = false;
     toast(good ? 'Chain intact and sealed' : 'The record does not hold — see the detail', good);
   };
@@ -7791,14 +7932,18 @@ function chainHead() {
   const chained = S.events.filter(e => e.chain);
   return { head: chained.length ? chained[0].chain : null, count: chained.length };
 }
-function fingerprint(head, count) {
-  const raw = digest('anchor:' + head + ':' + count, 20).toUpperCase();
+function fingerprint(head, count, seq) {
+  /* an anchor over a v2 head is byline-core's anchor: SHA-256 over the head and
+     its place in the record. Over a v1 head it is what it always was. */
+  const raw = (String(head).indexOf('sha256:') === 0 && seq >= 0
+    ? sha256hex('byline:anchor:v2:' + head + ':' + seq).slice(0, 20) : digest('anchor:' + head + ':' + count, 20)).toUpperCase();
   return raw.match(/.{1,5}/g).slice(0, 4).join('-');       // BYLN-style, readable aloud
 }
 function makeAnchor() {
   const { head, count } = chainHead();
   if (!head) { toast('Nothing chained yet to anchor'); return null; }
-  const a = { head, count, at: now(), by: S.meId, fp: fingerprint(head, count) };
+  const top = S.events.find(e => e.chain === head);
+  const a = Object.assign({ head, count, at: now(), by: S.meId, fp: fingerprint(head, count, top && top.seq) }, isV2(top) ? { v: 2, seq: top.seq } : {});
   (S.anchors = S.anchors || []).unshift(a);
   if (S.anchors.length > 20) S.anchors.length = 20;
   logEvent('record.anchored', { fingerprint: a.fp, entries: count });
@@ -7829,7 +7974,7 @@ function checkAnchor(a, events) {
    can be cleared while every link still verifies — the fact of the entry
    survives, its contents do not. */
 function redactEvent(ev) {
-  if (!ev.dataHash) ev.dataHash = dataHashOf(ev.data);
+  if (!ev.dataHash) ev.dataHash = dataHashOf(ev.data, ev.v);
   ev.data = {}; ev.redacted = { at: now(), by: S.meId };
   save();
 }
@@ -9899,6 +10044,98 @@ async function runTests() {
   });
 
   /* ---- the record ---- */
+  await t('The record', 'the synchronous SHA-256 agrees with WebCrypto on every block boundary', async () => {
+    const hex = async x => toHex(await SUBTLE.digest('SHA-256', encU(x)));
+    eq(sha256hex('abc'), 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad', 'the FIPS 180-4 vector:');
+    eq(sha256hex(''), 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', 'the empty string:');
+    let n = 0;
+    for (const len of [1, 54, 55, 56, 57, 63, 64, 65, 118, 119, 120, 127, 128, 129, 1000, 70000]) {
+      for (const unit of ['a', 'é', '日', '🙂']) { const x = unit.repeat(len); eq(sha256hex(x), await hex(x), unit + ' × ' + len + ':'); n++; }
+    }
+    ok(n === 64, 'all 64 cases ran');
+  });
+  await t('The record', 'new entries are v2: SHA-256, numbered, and naming the key that sealed them', async () => {
+    const ev = logEvent('v2.shape', { note: 'x', when: new Date(0), gone: undefined }, meP.id);
+    await sleep2(300);
+    eq(ev.v, 2, 'format:');
+    ok(/^sha256:[0-9a-f]{64}$/.test(ev.chain) && /^sha256:[0-9a-f]{64}$/.test(ev.dataHash), 'both hashes are SHA-256');
+    eq(ev.actor, meP.did, 'the chain names the did:');
+    eq(ev.dataHash, 'sha256:' + toHex(await SUBTLE.digest('SHA-256', encU(jcs(ev.data)))), 'WebCrypto agrees on the payload hash:');
+    eq(ev.chain, 'sha256:' + toHex(await SUBTLE.digest('SHA-256', encU(jcs({ v: 2, seq: ev.seq, prev: ev.prev, kind: ev.kind, ts: ev.ts, actor: ev.actor, dataHash: ev.dataHash })))), 'and on the link:');
+    eq(JSON.stringify(JSON.parse(JSON.stringify(ev.data))), JSON.stringify(ev.data), 'the payload is already what storage will hand back:');
+    const next = logEvent('v2.shape', { note: 'y' }, meP.id);
+    eq(next.seq, ev.seq + 1, 'numbered in order:'); eq(next.prev, ev.chain, 'and linked:');
+    eq(await verifySeal(ev), true, 'sealed:');
+    const r = verifyRecord();
+    ok(r.ok && r.v2 >= 2, 'the walk counts them: ' + JSON.stringify(r));
+    /* what only the link covers */
+    for (const [field, val] of [['kind', 'v2.other'], ['ts', 5], ['actor', 'did:key:zDnaeyyAD2mG2svkqfEjseayURVeZjUQcXvfqZmtMPnERSGnM'], ['seq', ev.seq + 7]]) {
+      const was = ev[field]; ev[field] = val;
+      const bad = verifyRecord(); ev[field] = was;
+      ok(!bad.ok, 'changing ' + field + ' is caught: ' + JSON.stringify(bad));
+    }
+    const was = ev.data; ev.data = { note: 'X' };
+    ok(/no longer match/.test(verifyRecord().why || ''), 'and so is the payload'); ev.data = was;
+    ok(verifyRecord().ok, 'restored');
+    /* the numbering is its own check: an editor who removes an entry and
+       recomputes every hash, but leaves the numbers, is caught by the gap */
+    const snap = JSON.stringify(S.events);
+    try {
+      logEvent('v2.shape', { note: 'z' }, meP.id);
+      S.events.splice(1, 1);
+      const chrono = S.events.slice().reverse().filter(e => e.chain);
+      let prev = chrono[0].prev;
+      for (const x of chrono) { x.prev = prev; x.chain = chainOf(x); prev = x.chain; }   // hashes, not numbers
+      const g = verifyRecord();
+      ok(!g.ok && /missing or out of order/.test(g.why), 'hashes all consistent, one number skipped: ' + JSON.stringify(g));
+    } finally { S.events = JSON.parse(snap); save(); }
+    ok(verifyRecord().ok, 'and the record is whole again');
+  });
+  await t('The record', 'a v2 seal is held to the person named, not just to a key', async () => {
+    const ev = logEvent('v2.seal', { a: 1 }, meP.id);
+    await sleep2(300);
+    eq(await verifySeal(ev), true, 'honest:');
+    /* an editor files their own entry, seals it properly with their own key, and puts a colleague's name on it */
+    const mal = await genIdentity();
+    const forged = { v: 2, id: 'ev_forged', kind: 'v2.seal', data: {}, ts: now(), actorId: meP.id, actor: mal.did, seq: ev.seq + 1, prev: ev.chain };
+    forged.dataHash = dataHashOf(forged.data, 2); forged.chain = chainOf(forged);
+    forged.seal = toHex(await SUBTLE.sign(ECSIG, await SUBTLE.importKey('jwk', mal.jwk, ECDSA, false, ['sign']), sealBodyV2(forged)));
+    eq(await verifySeal(forged), false, 'a valid seal by a key this person never held:');
+    /* and a seal made for a line cannot be replayed as a seal on the record */
+    const replay = Object.assign({}, ev, { seal: await signReal({ id: ev.chain, channelId: '', authorId: meP.id, text: ev.chain, kind: 'seal', ts: ev.ts }, meP) });
+    eq(await verifySeal(replay), false, 'a v1-style signature over the same head:');
+  });
+  await t('The record', 'a revoked key does not seal what is dated after its revocation', async () => {
+    const ev = logEvent('seal.revoked.test', { n: 1 }, meP.id);
+    await sleep2(300);
+    const was = meP.revokedAt;
+    try {
+      eq(await verifySeal(ev), true, 'before any revocation:');
+      meP.revokedAt = ev.ts + 60e3;
+      eq(await verifySeal(ev), true, 'an entry dated before the revocation still stands:');
+      meP.revokedAt = ev.ts - 1;
+      eq(await verifySeal(ev), false, 'one dated after it does not:');
+    } finally { if (was === undefined) delete meP.revokedAt; else meP.revokedAt = was; }
+  });
+  await t('The record', 'legacy entries stay checkable, are counted, and cannot come back', async () => {
+    const keep = S.events;
+    try {
+      const mk = (prev, i) => { const e = { id: 'old_' + i, kind: 'old.entry', data: { i }, ts: 1000 + i, actorId: meP.id }; e.dataHash = dataHashOf(e.data); e.prev = prev; e.chain = chainOf(e); return e; };
+      const a = mk('genesis', 0), b = mk(a.chain, 1);
+      ok(/^[0-9a-f]{24}$/.test(a.chain), 'a v1 link is the old 96-bit value');
+      S.events = [b, a];
+      const c = logEvent('new.entry', { i: 2 }, meP.id);
+      eq(c.v, 2, 'what is filed on top of a legacy record is v2:'); eq(c.prev, b.chain, 'linked to the legacy head:'); eq(c.seq, 2, 'and numbered after it:');
+      const r = verifyRecord();
+      ok(r.ok && r.v1 === 2 && r.v2 === 1 && /96-bit/.test(r.v1note), 'the verdict says how many are legacy and what that is worth: ' + JSON.stringify(r));
+      const back = mk(c.chain, 3); S.events.unshift(back);
+      const d = verifyRecord();
+      ok(!d.ok && /does not go back/.test(d.why), 'a v1 entry after a v2 one is refused: ' + JSON.stringify(d));
+      S.events.shift();
+      const odd = Object.assign({}, c, { v: 3 }); S.events[0] = odd;
+      ok(/does not know/.test(verifyRecord().why || ''), 'and so is a format from the future');
+    } finally { S.events = keep; save(); }
+  });
   await t('The record', 'the chain verifies end to end', () => {
     for (let i = 0; i < 5; i++) logEvent('test.entry', { i });
     const r = verifyRecord();
@@ -9947,7 +10184,8 @@ async function runTests() {
     S.events.splice(idx, 1);
     const chrono = S.events.slice().reverse().filter(e => e.chain);
     let prev = chrono[0].prev;
-    for (const e of chrono) { e.prev = prev; e.chain = chainOf(e); prev = e.chain; }
+    let seq = null;                                  // a thorough editor renumbers too
+    for (const e of chrono) { e.prev = prev; if (isV2(e)) { e.seq = seq === null ? e.seq : seq + 1; seq = e.seq; } e.chain = chainOf(e); prev = e.chain; }
     ok(verifyRecord().ok, 'the hash chain alone is repairable — that is why seals exist');
     const after = await verifyRecordSeals();
     ok(after.broken.length > 0, 'a re-chained record must fail its seals');
@@ -10647,7 +10885,8 @@ async function runTests() {
     S.events.splice(0, 2);
     const chrono = S.events.slice().reverse().filter(e => e.chain);
     let prev = chrono[0].prev;
-    for (const e of chrono) { e.prev = prev; e.chain = chainOf(e); prev = e.chain; }
+    let seq = null;                                  // a thorough editor renumbers too
+    for (const e of chrono) { e.prev = prev; if (isV2(e)) { e.seq = seq === null ? e.seq : seq + 1; seq = e.seq; } e.chain = chainOf(e); prev = e.chain; }
     ok(!checkAnchor(a).ok, 'a re-chained truncation still fails the anchor');
   });
 
@@ -11806,6 +12045,69 @@ async function runTests() {
   /* The four below exist because mutation testing broke the product on purpose
      and the suite did not notice. Three of them had tests that passed for the
      wrong reason — the guard being claimed was never the guard doing the work. */
+  await t('Delegation', 'authority is for the masthead it names — it verifies elsewhere, and grants nothing there', async () => {
+    const ag = Object.values(S.people).find(p => p.type === 'agent' && p.did);
+    const held = ag.delegation;
+    try {
+      const here = await issueVC(delegationCredential(meP, ag, ['desk:read', 'desk:file'], 30), meP);
+      eq(here.credentialSubject.audience, audiencesHere()[0], 'a new delegation names this masthead:');
+      ok(!/My Community|This masthead/.test(here.credentialSubject.audience) && here.credentialSubject.audience.indexOf(S.workspace.name) < 0, 'by a value, not by a title a peer can change');
+      const v = await verifyDelegation(here);
+      ok(v.ok && v.here, 'and is for here: ' + JSON.stringify(v));
+      ag.delegation = here; ok((await effectiveScope(ag)).scope.indexOf('desk:file') >= 0, 'so it grants');
+
+      const doc = delegationCredential(meP, ag, ['desk:read', 'desk:file', 'delegate'], 30);
+      doc.credentialSubject.audience = 'urn:byline:masthead:somewhere-else';
+      const elsewhere = await issueVC(doc, meP);
+      const e = await verifyDelegation(elsewhere);
+      ok(e.ok && e.here === false && e.audience === 'urn:byline:masthead:somewhere-else', 'the same root, for another masthead: the signatures still hold — ' + JSON.stringify(e));
+      ag.delegation = elsewhere;
+      const eff = await effectiveScope(ag);
+      ok(eff.scope.length === 0 && /not for this one/.test(eff.why || ''), 'and it grants nothing here: ' + JSON.stringify(eff));
+      ok(!(await mayDo(ag, 'desk:file')), 'the gate agrees');
+
+      /* every link: a parent from elsewhere under a child that names this masthead */
+      const other = Object.values(S.people).find(p => p.type === 'agent' && p.did && p.id !== ag.id);
+      const child = await issueVC(delegationCredential(ag, other, ['desk:read'], 20, elsewhere), ag);
+      eq(child.credentialSubject.audience, audiencesHere()[0], 'the child says here:');
+      const c = await verifyDelegation(child);
+      ok(c.ok && c.here === false, 'but what it rests on does not, and that decides: ' + JSON.stringify(c));
+
+      const none = delegationCredential(meP, ag, ['desk:read'], 30); delete none.credentialSubject.audience;
+      ok((await verifyDelegation(await issueVC(none, meP))).here === false, 'one that names no masthead is for none');
+
+      /* a peer renames the masthead; nothing that was for here stops being for here */
+      const title = S.workspace.name; S.workspace.name = 'Renamed by a peer';
+      try { ok((await verifyDelegation(here)).here, 'a change of title changes nothing'); } finally { S.workspace.name = title; }
+    } finally { ag.delegation = held; save(); }
+  });
+  await t('Delegation', 'credentials issued before the masthead had a name of its own keep working', async () => {
+    const ws = S.workspace, keep = JSON.stringify(ws);
+    try {
+      delete ws.aud; delete ws.audiences;
+      const before = 'urn:byline:masthead:' + (ws.id || ws.name);
+      const list = audiencesHere();
+      ok(list.length === 2 && list[1] === before && list[0] !== before, 'the old title-based name is kept as a second, frozen name: ' + JSON.stringify(list));
+      const ag = Object.values(S.people).find(p => p.type === 'agent' && p.did);
+      const old = delegationCredential(meP, ag, ['desk:read'], 30); old.credentialSubject.audience = before;
+      ok((await verifyDelegation(await issueVC(old, meP))).here, 'so yesterday’s credential is still for here');
+      ws.name = 'Another title';
+      eq(JSON.stringify(audiencesHere()), JSON.stringify(list), 'and the list does not follow the title afterwards:');
+      const st = { workspace: { name: 'x', audiences: ['ok', 7] } }; hydrate(st, true);
+      ok(st.workspace.audiences === undefined, 'a list in the wrong shape from a file is dropped, not trusted');
+    } finally { Object.keys(ws).forEach(k => delete ws[k]); Object.assign(ws, JSON.parse(keep)); save(); }
+  });
+  await t('Withdrawal', 'a withdrawal list that inflates without end is refused, not read', async () => {
+    const gz = async bytes => { const cs = new CompressionStream('gzip'); const w = cs.writable.getWriter(); w.write(bytes); w.close(); return new Uint8Array(await new Response(cs.readable).arrayBuffer()); };
+    const enc = b => { let x = ''; b.forEach(v => { x += String.fromCharCode(v); }); return 'u' + btoa(x).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+    const honest = await slDecode(enc(await gz(new Uint8Array(SL_BYTES))));
+    eq(honest.length, SL_BYTES, 'an honest list still reads:');
+    eq((await slDecode(enc(await gz(new Uint8Array(SL_MAX_INDEX >> 3))))).length, SL_MAX_INDEX >> 3, 'and so does the largest honest one:');
+    const bomb = await gz(new Uint8Array(24 * 1024 * 1024));
+    ok(bomb.length < 64 * 1024, 'the bomb is ' + bomb.length + ' bytes on the wire');
+    let why = ''; try { await slDecode(enc(bomb)); } catch (e) { why = e.message; }
+    ok(/inflates past/.test(why), '24MB of zeros is refused part-way: ' + why);
+  });
   await t('Delegation', 'the gate that actually files copy obeys the credential', async () => {
     const c = S.channels.find(x => x.kind === 'channel' && !x.huddleOf);
     if (c.members.indexOf(nib.id) < 0) c.members.push(nib.id);
