@@ -355,6 +355,18 @@ file leaves.
 provider under their terms. The local-model path (Ollama) is the only one where
 nothing leaves the machine.
 
+**A peer rewriting what your correspondent is told to do.** Found on
+2026-09-20 while tracing the forgery below, and still open. When a peer's
+snapshot describes a correspondent whose key is held here, the merge refuses
+its keys, its revocation, and now its delegation and its permission card — and
+takes the rest, which includes `instructions`, `harness`, `model` and `host`.
+With the local helper on, `instructions` is the system prompt of a real agent
+running on this machine. This is read from the code and has not been
+reproduced. It needs a peer you connected to and compared codes with. The fix
+is an allow-list of what a peer may say about a correspondent you hold, and
+that is a decision about what two of your own machines should sync, so it was
+not made in passing.
+
 ---
 
 ## What it does protect against
@@ -443,6 +455,43 @@ desk still in storage. A save now names only an owner who exists, and boot
 repairs a dangling one by reading as a real identity and recording the
 substitution in the record. If you have a masthead that will not open, this
 was the cause.
+
+**Authority in your name, signed by somebody else — fixed, and worth
+knowing.** Until 2026-09-20 a credential's proof was checked against the key
+named in `proof.verificationMethod`, and who had *issued* it was read off a
+different field, `issuer`. Nothing required the two to be the same identifier.
+So anyone could write your did:key into `issuer`, grant themselves every scope
+including the right to pass it on, sign with a key of their own, and be told by
+`verifyDelegation` that the chain held and was rooted in you. Your did is
+public; it is in every credential you issue. Only the revocation check compared
+the two, and the fix borrows its words: *it names one issuer and is signed by
+another*.
+
+It was reachable through the interface, not only from a console. A peer you had
+connected to could put a forged delegation on one of your correspondents in a
+snapshot, and that correspondent would file, open desks and delegate on it,
+over a reads-only credential you had issued — a test sent exactly that against
+the unfixed file and it worked. "Check a credential" would have read "Authority
+rooted in" your name for a forged file, and a verifier asking over OpenID4VP
+for "proof someone acts on a masthead's authority" would have been given it by
+a stranger. Every entry point is written down, with which were proven and which
+only read, in `byline-appsec-threat-model.md` under TM-014.
+
+Tracing that found the quieter version (TM-015): a peer never needed to forge
+anything. It could send `delegation: null` with the card turned up to "files
+directly", and the fallback said yes. For anyone whose key is held here, a
+peer's word on either is no longer taken.
+
+If you verified a delegation with a copy of Byline from before this date and
+acted on the answer, check it again.
+
+**A rotated key reporting its own seals as tampering — fixed.** Copy filed
+under a retired key went on verifying; the record's seals did not, because
+`verifySeal` only ever tried the current key. One rotation turned every earlier
+seal by that person into a broken one in the record check. Nothing was forged
+and nothing was lost — the report was wrong, in the direction that teaches
+people to ignore it. A retired key now vouches for entries dated before its
+handover and for nothing after.
 
 ## A note on what a screen reader has and has not heard
 

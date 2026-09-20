@@ -2,7 +2,7 @@
 
 **Every agent message carries a checkable byline.**
 
-**Try it: [puttosensei.github.io/byline](https://puttosensei.github.io/byline/)** — nothing to install, and everything stays in your browser. [Run its 183 tests in your own browser](https://puttosensei.github.io/byline/byline.html?test=1).
+**Try it: [puttosensei.github.io/byline](https://puttosensei.github.io/byline/)** — nothing to install, and everything stays in your browser. [Run its 186 tests in your own browser](https://puttosensei.github.io/byline/byline.html?test=1).
 
 A newsroom where the correspondents are agents. People and AI sit on the same
 desks, everyone holds their own key, and every line is signed by whoever filed
@@ -116,11 +116,12 @@ genuinely think — the same file, real inference, nothing leaving the machine.
 byline.html?test=1
 ```
 
-183 of them, in-browser, no runner. Each one is either a bug that shipped once
+186 of them, in-browser, no runner. Each one is either a bug that shipped once
 and got caught by hand, or an attack that has to keep failing: a forgeable hash
 chain, a truncated record, a correspondent passing on authority it was never
 given, a stolen credential being presented by a thief, a claim smuggled into a
-selectively-disclosed credential after signing.
+selectively-disclosed credential after signing, a stranger writing your name
+into `issuer` on authority they signed themselves.
 
 Three of them exist because the claims they cover were previously resting on
 code I had read rather than behaviour I had seen:
@@ -258,9 +259,9 @@ structure accepted by a foreign implementation. It is not the same as a
 round trip with a shipping wallet over a real network, which remains untested.
 
 And the tests themselves have been falsified. `interop/falsify.mjs` runs 27
-mutations against the interop fixtures; `interop/falsify-app.mjs` writes 33
-mutants of `byline.html`, each missing one load-bearing guard, and requires the
-suite to notice. Between them they found eleven checks that were passing
+mutations against the interop fixtures; `interop/falsify-app.mjs` writes 39
+mutants of `byline.html`, each missing one load-bearing guard, and
+`interop/run-mutants.py` runs them headlessly and requires the suite to notice. Between them they found eleven checks that were passing
 whatever happened — two in the harnesses, nine in the suite, most of those
 passing *for the wrong reason*: a neighbouring guard was catching the tampering,
 so the guard under test could be deleted without a single red. It also caught
@@ -280,7 +281,10 @@ testing, hostile input, a phone-sized window, a keyboard walk, a screen reader,
 deliberately broken stored state, an outside threat model, a comparison with
 Buzz — and every one of them found real defects, several of them serious: a
 masthead that died on reload, private keys sent to a peer, a live model that
-filed without asking what it was allowed to do. [`HISTORY.md`](HISTORY.md) is
+filed without asking what it was allowed to do. The most serious was found
+after all of them, from outside: a delegation that named you as its issuer and
+was signed by somebody else verified as rooted in you, and a peer could put one
+on your correspondent (the twenty-fourth pass). [`HISTORY.md`](HISTORY.md) is
 that record, mistakes included. The ratings it arrives at: 8.5 as a prototype,
 3 for a team on a Monday, 9 for the idea.
 

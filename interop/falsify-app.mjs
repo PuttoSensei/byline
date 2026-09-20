@@ -126,8 +126,31 @@ const MUTATIONS = [
 
   { id: 'seal-never-verified', group: 'The record',
     what: 'every seal is reported as valid without checking it',
-    find: "    return await SUBTLE.verify(ECSIG, await _pub(a), unHex(ev.seal),",
-    to: "    return true; await SUBTLE.verify(ECSIG, await _pub(a), unHex(ev.seal)," },
+    find: `    if (await SUBTLE.verify(ECSIG, await _pub(a), sig, body)) return true;
+  } catch (e) { return false; }`,
+    to: `    return true;
+  } catch (e) { return false; }` },
+
+  { id: 'rotation-breaks-old-seals', group: 'The record',
+    what: 'a seal is checked against the current key only, so rotating reports every earlier seal as tampering',
+    find: `    if (ev.ts > r.until) continue;
+    try {
+      const k = await SUBTLE.importKey('jwk', r.pubJwk, ECDSA, false, ['verify']);
+      if (await SUBTLE.verify(ECSIG, k, sig, body)) return true;`,
+    to: `    continue;
+    try {
+      const k = await SUBTLE.importKey('jwk', r.pubJwk, ECDSA, false, ['verify']);
+      if (await SUBTLE.verify(ECSIG, k, sig, body)) return true;` },
+
+  { id: 'retired-key-seals-forever', group: 'The record',
+    what: 'a retired key may seal entries dated after it was handed over',
+    find: `    if (ev.ts > r.until) continue;
+    try {
+      const k = await SUBTLE.importKey('jwk', r.pubJwk, ECDSA, false, ['verify']);
+      if (await SUBTLE.verify(ECSIG, k, sig, body)) return true;`,
+    to: `    try {
+      const k = await SUBTLE.importKey('jwk', r.pubJwk, ECDSA, false, ['verify']);
+      if (await SUBTLE.verify(ECSIG, k, sig, body)) return true;` },
 
   { id: 'redaction-keeps-data', group: 'The record',
     what: 'redacting an entry leaves its contents in place',
@@ -141,8 +164,11 @@ const MUTATIONS = [
 
   { id: 'anchor-head-ignored', group: 'Anchoring',
     what: 'an anchored entry that has vanished from the record passes',
-    find: "if (at < 0) return { ok: false, why: 'the anchored entry is no longer in the record — entries have been removed from the end or rewritten' };",
-    to: "if (false) { }" },
+    /* the guard grew a branch for anchors older than the bounded tail, and the
+       needle went stale with it — three of these sat unmatched, which meant the
+       generator exited 1 and nobody could tell a new bad needle from an old one */
+    find: "if (at < 0) {",
+    to: "if (false) {" },
 
   { id: 'merge-duplicates-lines', group: 'Multiplayer,Peers',
     what: 'merging two copies of a desk duplicates every shared line',
@@ -161,8 +187,8 @@ const MUTATIONS = [
 
   { id: 'foreign-status-list-governs', group: 'Interop',
     what: "another masthead's withdrawal list revokes our credentials",
-    find: "if (cs && cs.statusListIndex != null && cs.statusListCredential === STATUS_LIST_URL && slRevoked(cs.statusListIndex))",
-    to: "if (cs && cs.statusListIndex != null && slRevoked(cs.statusListIndex))" },
+    find: "if (isOwnList(cs.statusListCredential)) {",
+    to: "if (true) {" },
 
   { id: 'holder-mismatch-ignored', group: 'Presentation',
     what: 'a presentation naming one holder and signed by another is accepted',
@@ -171,8 +197,31 @@ const MUTATIONS = [
 
   { id: 'untrusted-root-accepted', group: 'Trust',
     what: 'a chain rooted in a stranger verifies without anyone saying so',
-    find: "const trusted = trustedRoots().find(r => r.did === vc.issuer);",
-    to: "const trusted = { did: vc.issuer, name: 'a stranger' };" },
+    find: "const trusted = trustedRoots().find(r => r.did === issuer);",
+    to: "const trusted = { did: issuer, name: 'a stranger' };" },
+
+  /* The forgery byline-core's interop/byline-issuer-forgery.mjs proved: the
+     proof is checked against verificationMethod, authority is read off
+     `issuer`, and for twenty-one passes nothing made them the same. */
+  { id: 'issuer-not-bound-to-signer', group: 'Delegation,Peers',
+    what: 'a credential may name one issuer and be signed by another — a stranger roots a chain in you',
+    find: "if (named !== null && named !== did) return { ok: false, why: NOT_THE_ISSUER };",
+    to: "if (false) { }" },
+
+  { id: 'peer-sets-authority', group: 'Peers',
+    what: 'a peer may take a credential off a correspondent whose key is held here, and turn its card up',
+    find: "if (heldHere(was)) AUTHORITY_FIELDS.forEach(k => delete t[k]);",
+    to: "" },
+
+  { id: 'jwt-issuer-not-bound-to-signer', group: 'Delegation',
+    what: 'the same, inside a JOSE envelope',
+    find: "if (issuerOf(vc) !== null && issuerOf(vc) !== String(r.header.kid).split('#')[0]) return { ok: false, why: NOT_THE_ISSUER };",
+    to: "if (false) { }" },
+
+  { id: 'issuerless-authority-accepted', group: 'Delegation',
+    what: 'a delegation that names no issuer escapes being held to one',
+    find: "if (!issuer) return { ok: false, why: 'it does not say who issued it' };",
+    to: "if (false) { }" },
 
   { id: 'revoked-key-still-signs', group: 'Identity',
     what: 'copy filed after a key was revoked still verifies',
@@ -181,8 +230,9 @@ const MUTATIONS = [
 
   { id: 'keys-left-in-clear', group: 'Identity',
     what: 'locking the masthead encrypts the keys but leaves the plaintext beside them',
-    find: "p.enc = { iv: toHex(iv), ct: toHex(ct) };\n    delete p.jwk;",
-    to: "p.enc = { iv: toHex(iv), ct: toHex(ct) };" },
+    find: `p.enc = await wrapJwk(p.jwk);
+    delete p.jwk;`,
+    to: "p.enc = await wrapJwk(p.jwk);" },
 
   { id: 'did-key-unframed', group: 'Identity,Interop,Credentials',
     what: 'the multicodec header is no longer written into a did:key',

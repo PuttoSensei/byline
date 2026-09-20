@@ -960,3 +960,72 @@ Then the seam, in a real browser against the real helper: a wrong token
 refused, the right one connected, both agent formats streamed through real
 CORS and preflight. What has still never been seen is a real agent succeeding.
 
+### The twenty-fourth pass: whose name is on it, and who signed
+
+Found from outside, by building a second thing on the same trust layer and
+reading `verifyDelegation` next to `verifyRevocation`. The revocation check had
+a line the delegation check did not: *it names one issuer and is signed by
+another*. A credential's proof was verified against the key in
+`proof.verificationMethod`; who rooted a chain of authority was looked up from
+`issuer`. Nothing made them the same identifier. A stranger could write the
+owner's did:key into `issuer`, grant themselves every scope including
+`delegate`, sign with their own key, and get back `{ ok: true, root: "<the
+owner>" }`. Twenty-three passes, a mutation harness and an outside threat model
+had all walked past it, because every test that forged a credential forged the
+*signature* and none forged the *name*.
+
+The proof came first and lives outside this repository:
+`byline-core/interop/byline-issuer-forgery.mjs` cuts Byline's own functions out
+of `byline.html` by marker and runs the forgery. Its header promised exit 1
+while the forgery was accepted; it set no exit code at all, and it could only
+read a committed file. Both were fixed before it was trusted as a check. It
+exits 0 now.
+
+The test was written to fail and did, in the file's own words: *IT HELD, rooted
+in Test Runner with desk:read, desk:file, desk:create, memory:write, delegate*.
+The fix is two lines in `verifyVC` — a credential that names an issuer (a
+string, or an object with an `id`) other than the did that signed is refused —
+the same two in `verifyJwtVc`, because a JOSE envelope carries the same claim,
+and `verifyDelegation` now reads the issuer one way and refuses a link that
+names none. Checked not to disturb: presentations (a `holder`, no issuer),
+status-list credentials, handovers and acceptances, a `did:web` issuer, and the
+credential the reference stack signed under ecdsa-rdfc-2019.
+
+**Was it exploitable through the interface? Yes.** The second test answers
+that rather than the prose: a peer's snapshot carrying a forged delegation for
+a correspondent the owner had restricted to reading, and against the unfixed
+file `effectiveScope` answered *from: credential, rooted in* the owner, with
+filing and delegating. "Check a credential" and the OpenID4VP verifier call the
+same function on a file a stranger supplies; those two were traced by reading,
+not driven. Every entry point is in `byline-appsec-threat-model.md` under
+TM-014, marked proven or read.
+
+Tracing it found the version that needed no forgery (TM-015). The merge took
+`delegation` and `policy` as data, so a peer could send `delegation: null` with
+the card turned up and let the fallback say yes. Written as a test, it failed:
+*now policy — desk:read, desk:file, desk:create, memory:write, delegate*. For
+anyone whose key is held here, neither is taken from a peer now. What the same
+merge still takes — a held correspondent's `instructions`, `harness`, `model`
+and `host` — is **open**, written into both threat models, and not fixed here:
+the right fix is an allow-list, and what two of your own machines should sync
+is not a decision to make in passing.
+
+And one that was only a suspicion from the same read: `verifyReal` tries a
+byline's retired keys, `verifySeal` tried only the current one. Confirmed by a
+test — *still verifying once that key is retired: expected true, got false* —
+so one key rotation made the record check report every earlier seal by that
+person as broken. Nothing was forged; the alarm was false, which is its own
+kind of damage. Fixed to the same rule as copy: a retired key vouches for what
+is dated before its handover, and a test has the retired key try to seal
+something later and be refused.
+
+Seven mutants for the new guards, all killed, one of them by a crash in the
+mutant rather than by its assertion (a delegation with no issuer, once the
+guard is gone, dies on `null.slice` before it can be judged). Adding them found
+the generator had been exiting 1 for some time: three needles had gone stale as
+the guards they aimed at grew, and a generator that always fails cannot tell
+you about a new bad needle. Repaired; 39 mutants, none rejected, and the whole
+set run headlessly rather than in an iframe for the first time.
+
+Verified in **Firefox 156 and Chrome 153, 186 pass, 0 fail each, at a desktop window and at a phone window**. Edge was not run: headless Edge on the
+build machine exits at once, on a bare `data:` page as readily as on Byline.

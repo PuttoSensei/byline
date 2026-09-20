@@ -104,14 +104,20 @@ fail for the reason it claims to exist.
 ## And the same exercise on the app's own suite
 
 ```bash
-node falsify-app.mjs      # writes 33 mutants of byline.html to ../_mutants/
+node falsify-app.mjs      # writes 39 mutants of byline.html to ../_mutants/
+python run-mutants.py     # runs them headlessly; exit code = mutants not killed
 ```
 
 Each mutant is the whole file with one load-bearing guard removed — the chain
 stops linking to the previous entry, revocation always returns false, the
 subset check on delegation is deleted, and so on. `byline.html?test=1&only=Group`
-runs one slice of the suite, so a mutant takes seconds instead of a minute; the
-mutants are driven in an iframe from the real page.
+runs one slice of the suite, so a mutant takes seconds instead of a minute. The
+mutants were first driven in an iframe from the real page, by hand. That is why
+three needles later went stale unnoticed — the guards they aimed at had grown,
+the generator exited 1 every time, and a generator that always fails cannot
+tell you about a new bad needle. `run-mutants.py` gives each mutant a throwaway
+tree, stamps its CSP hash (an unstamped mutant runs nothing, which looks
+exactly like a kill), and counts as killed only a run in which a test FAILED.
 
 The generator refuses to write a mutant whose needle matches more than once, and
 refuses a mutation aimed at a test group that does not exist. Both guards earned
@@ -166,6 +172,16 @@ in five seconds at top level; those run by navigation instead.
 
 **33 mutations, 0 survivors** after five new tests, each confirmed red against
 its mutant before green against the clean file.
+
+**39 mutations, 0 survivors** on 2026-09-20, after the issuer forgery: a
+credential naming one issuer and signed by another (as Data Integrity and as a
+JWT), a delegation naming no issuer, a peer setting `delegation` or `policy` on
+a correspondent whose key is held here, a seal checked against the current key
+only, and a retired key sealing past its handover. One kill is by a crash in
+the mutant rather than by its assertion — with its guard gone, a delegation
+with no issuer dies on `null.slice` before it can be judged. The clean file
+does not crash there, so it is a kill; it is written down because the last
+time a crash did the catching, it was not.
 
 `verify-formats.mjs` covers the three formats Byline gained *after* the first
 check — presentations, VC-JWT and selective disclosure — because a format added
