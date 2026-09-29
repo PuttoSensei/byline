@@ -1200,3 +1200,37 @@ to touch the landing page.
 
 197 tests.
 
+
+### The twenty-eighth pass: a window of its own
+
+Opened from disk, Byline shares its storage with every other local HTML file
+in Chrome and Edge, and it says so with a banner and the key lock. The cure
+until now was to run a server. `desktop/` is the other cure: a Tauri window
+that serves the same `byline.html`, byte for byte, from its own origin
+(`http://tauri.localhost`), so the keys have storage nothing else reads.
+
+The shell adds nothing. The build copies the file and refuses to go on if its
+policy's script hash is stale. The page gets no Tauri object, no capability
+file grants it anything, and Tauri is told not to touch its security policy.
+The shell runs while its window is open, and not otherwise.
+
+The proof is the built executable, driven over the DevTools protocol with a
+throwaway WebView2 profile. It checks that the served page matches the
+repository's hash and that the page's own policy is the one in force. It also
+checks that the policy is enforced: an injected inline script is blocked and
+reported. A call into the shell is refused by its access list. Byline's
+storage check sees storage of its own. All 197 in-page tests pass inside the
+desktop window. What the page stores survives a restart, and a second
+profile cannot see it.
+
+Then the test was tested. Three changes to the shell's configuration each
+rebuilt the app: the global Tauri object turned on, Tauri's own policy turned
+on, and a default capability granted. The e2e failed on every one. The second
+was the instructive one. Given a policy, Tauri rewrites the page with nonces.
+The bytes no longer match, inline styles are blocked, and one in-page test
+fails. So `csp: null` is not laziness; it is the setting that keeps the page
+Byline's.
+
+Not done: an installer, signing, macOS and Linux, and passkeys in the window.
+
+197 tests.

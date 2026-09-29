@@ -79,6 +79,15 @@ or `https` each site's storage is its own. `python -m http.server` in this
 folder is enough. Served next to it, `byline-sw.js` also makes the page work
 offline after one visit, and passkeys need a secure context.
 
+### The desktop app (Windows, early)
+
+`desktop/` wraps the same `byline.html`, byte for byte, in a Tauri window, so
+its keys get storage of their own without running a server. The page keeps
+its own security policy and is given no API into the app. It runs while its
+window is open and not otherwise. See [desktop/README.md](desktop/README.md);
+there is no installer or signed build yet, and passkeys have not been tried in
+it.
+
 ### Real agents: the local helper
 
 A web page cannot start a program, so out of the box Claude Code and Codex are

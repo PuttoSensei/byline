@@ -1,0 +1,18 @@
+{
+  "name": "byline-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Byline in its own window: the same byline.html, served from its own origin instead of file://",
+  "type": "module",
+  "scripts": {
+    "stage": "node scripts/stage.mjs",
+    "build": "tauri build --no-bundle",
+    "start": "tauri dev",
+    "test:e2e": "node e2e/shell.mjs",
+    "check": "npm run build && npm run test:e2e"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.12.0",
+    "playwright-core": "^1.55.0"
+  }
+}
