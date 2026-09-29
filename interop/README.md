@@ -104,7 +104,7 @@ fail for the reason it claims to exist.
 ## And the same exercise on the app's own suite
 
 ```bash
-node falsify-app.mjs      # writes 51 mutants of byline.html to ../_mutants/
+node falsify-app.mjs      # writes 52 mutants of byline.html to ../_mutants/
 python run-mutants.py     # runs them headlessly; exit code = mutants not killed
 ```
 
@@ -227,6 +227,19 @@ Only these thirteen were run for this pass, not all 51: the other 38 aim at
 code this pass did not touch, the generator accepted every needle (0 rejected,
 so none went stale), and a full run is most of an hour. Run them all before a
 release.
+
+### Round four: what a peer may say about a correspondent that runs here
+
+`peer-sets-authority` is gone, because the line it aimed at is: a list of two
+fields struck by name became one line that takes nothing. Two mutants replace
+it, 52 in all. `peer-describes-held-correspondent` removes the line, and is
+killed by five tests — authority, the brief and harness, the memories, and the
+two older Peers tests that now assert a held correspondent keeps its name.
+`peer-rewrites-the-brief` is the mistake somebody would actually make: it puts
+the two-field list back. Authority stays guarded and that test stays green,
+which is the point — it is killed by the brief, the memories and the name, so a
+return to the deny-list cannot pass. **2 of 2 killed, read from the FAIL
+lines.** Only these two were run, for the same reason as round three.
 
 ## The relay
 

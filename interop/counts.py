@@ -48,6 +48,7 @@ def external(run):
     """PASS lines per harness. Without --fix this is read from the last run's
        cache, because running all seven takes a minute."""
     total, per = 0, {}
+    broken = []
     for h in HARNESSES:
         p = os.path.join(INTEROP, h)
         if not os.path.exists(p):
@@ -55,10 +56,18 @@ def external(run):
         if run:
             r = subprocess.run([sys.executable if p.endswith('.py') else 'node', p], capture_output=True, text=True, cwd=INTEROP)
             c = len(re.findall(r'^\s+PASS', r.stdout, re.M))
+            # A harness that could not start (no node_modules, no coincurve) prints
+            # no PASS lines and used to count as zero checks, so --fix once rewrote
+            # the landing page to claim 196 checks instead of 291. A harness that
+            # failed, or passed nothing, is a harness that did not run.
+            if r.returncode != 0 or c == 0:
+                broken.append(f'{h} (exit {r.returncode}, {c} checks)')
         else:
             c = None
         per[h] = c
         total += c or 0
+    if broken:
+        return None, dict(per, _broken=broken)
     return total, per
 
 
@@ -86,6 +95,12 @@ def main():
     t = tests()
     ext, per = external(fix or '--run' in sys.argv)
     print(f'tests in byline.html: {t}')
+    if per.get('_broken'):
+        print('REFUSING to count the outside checks: these harnesses did not run —')
+        for b in per['_broken']:
+            print('  ' + b)
+        print('  (in a fresh checkout or worktree: cd interop && npm ci; pip install coincurve)')
+        return 1
     if per and list(per.values())[0] is not None:
         for h, c in per.items():
             print(f'  {h:22} {c}')

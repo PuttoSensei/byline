@@ -208,10 +208,23 @@ const MUTATIONS = [
     find: "if (named !== null && named !== did) return { ok: false, why: NOT_THE_ISSUER };",
     to: "if (false) { }" },
 
-  { id: 'peer-sets-authority', group: 'Peers',
-    what: 'a peer may take a credential off a correspondent whose key is held here, and turn its card up',
-    find: "if (heldHere(was)) AUTHORITY_FIELDS.forEach(k => delete t[k]);",
+  /* This was `peer-sets-authority`, against a line that struck `delegation`
+     and `policy` by name. The pass after found `instructions`, `harness`,
+     `model`, `host` and `memories` coming through the same merge, and the
+     list became a rule: nothing a peer says about a correspondent that files
+     from here is taken. One line now holds what the list held and what it
+     missed, so one mutant has to be killed by all three tests. */
+  { id: 'peer-describes-held-correspondent', group: 'Peers',
+    what: 'a peer may rewrite the brief, the harness, the memories and the authority of a correspondent whose key is held here',
+    find: "if (heldHere(was)) { theirs.people[id] = was; return; }",
     to: "" },
+
+  /* …and the narrower mistake, which is the one somebody would actually make:
+     putting the list back. Authority is struck, the brief is not. */
+  { id: 'peer-rewrites-the-brief', group: 'Peers',
+    what: 'authority is struck from what a peer sends by name, and the system prompt and harness still arrive as data',
+    find: "if (heldHere(was)) { theirs.people[id] = was; return; }",
+    to: "if (heldHere(was)) ['delegation', 'policy'].forEach(k => delete t[k]);" },
 
   { id: 'jwt-issuer-not-bound-to-signer', group: 'Delegation',
     what: 'the same, inside a JOSE envelope',

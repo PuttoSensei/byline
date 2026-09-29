@@ -1090,3 +1090,113 @@ still the old keyed digest, shown in green beside entries whose real seal is
 elsewhere. And the hole the twenty-fourth pass wrote down — a peer rewriting a
 held correspondent's instructions — is still open, still waiting on a decision
 about what two of one person's machines should sync.
+
+### The twenty-sixth pass: the decision the last two left on the table
+
+The hole had been written down twice and reproduced never. It was read from the
+code: the snapshot merge strikes a held correspondent's keys, its revocation
+and — since the twenty-fourth pass — its `delegation` and `policy`, and then
+`Object.assign(was, t)` takes whatever is left. What is left includes
+`instructions`, `harness`, `model` and `host`. With the local helper on,
+`instructions` is the system prompt of a real agent on this machine and
+`harness` picks which program is run.
+
+The test came first and failed in one line: *a confirmed peer rewrote
+instructions, harness, model, host on a correspondent whose key is held here*.
+All four, not some.
+
+Writing it found the part the write-up had wrong. Both threat models said the
+fix was an allow-list and that the cost was `memories`, which ride the same
+merge and which two of one person's machines might want to share. But
+`buildPrompt` writes memories into the system prompt under *"Standing
+instructions you have been given before"*. They were never the harmless thing
+the allow-list would have to give up; they were the same hole with a friendlier
+name. A second test sent one and read it back out of the prompt. And `name` is
+in that prompt too — *You are ${agent.name}* — so an allow-list of "cosmetics"
+would have kept a field a peer can put a sentence in.
+
+So the question went to the owner as it stood: nothing, cosmetics, or cosmetics
+and memories with the second test left red and the residual written down. He
+chose nothing. The fix is one line, and it is the line the merge always had for
+`id === mine` — *ours is not theirs to describe* — extended to everyone who
+files from here: if the key is held here, the peer's card is dropped whole.
+`AUTHORITY_FIELDS`, the two-name list the twenty-fourth pass added, is deleted
+rather than kept beside it; its own comment had said a deny-list fails open on
+the next field anyone adds, one pass before the next field was found. Signed
+revocations and handovers are collected before that line and still travel
+their own checked paths.
+
+Two older Peers tests went red, correctly: both used Nib as "somebody a peer
+may describe" and asserted its name was taken. One now stands up a
+correspondent whose key is somewhere else, and shows the peer's word about
+*that* one still lands, in place, on the same object, without stranding `busy`;
+both assert Nib keeps its name.
+
+`peer-sets-authority` lost its needle with the line, and is replaced by two
+mutants, 52 in all. One removes the guard. The other is the mistake somebody
+would actually make — it puts the two-field list back — and the authority test
+stays green against it, as it should; the brief, the memories and the name
+kill it. Both killed, read from the FAIL lines. Only those two were run.
+
+What it costs is in THREAT-MODEL.md under what Byline does not protect: two of
+your own machines that both hold a correspondent no longer tell each other
+what it is called or what it has learned. Nothing signs a correspondent's card,
+so there was nothing to tell your other machine from anyone else you compared
+codes with. That would be the way to get it back, and it was not built.
+
+One thing went wrong on the way and is written down because it is the kind
+that gets through. This pass was done in a git worktree with no
+`interop/node_modules`, and `counts.py --fix` re-runs the external harnesses to
+count them: seven of the eight found no dependencies, printed no PASS lines, and
+the landing page was rewritten to say a hundred and ninety-six checks run
+outside the browser instead of two hundred and ninety-one. It was caught by
+reading the script's output rather than its exit code, and put back by hand.
+`counts.py` still cannot tell a harness that failed to start from one with no
+checks in it.
+
+196 tests. Verified in **Firefox 156, Chrome 153 and Edge 153, 196 pass, 0 fail
+each, at a desktop window and at a phone window**. Edge started under
+`run-suite.py` today, unchanged; whatever stopped it earlier on this date was
+the machine. The external harnesses were not re-run from a tree that has their
+dependencies, and nothing they check was touched.
+
+### The twenty-seventh pass: another session's work, checked before it was kept
+
+Three passes had been done in a separate session and left on a local branch and
+an uncommitted worktree. Before any of it was kept, it was run again from a tree
+that has the harnesses' dependencies, which the last of those passes had not.
+
+The whole gate held: 196 pass in Firefox 156 and Chrome 153 at a desktop window
+and at a phone window, and all nine outside harnesses green. One Firefox run
+did not start at the phone window; the runner had left the desktop run's
+Firefox alive. It passed 196 of 196 on the rerun, and nothing in Byline was the
+cause.
+
+The hand-written synchronous SHA-256 the v2 record rests on was compared with
+Node's OpenSSL-backed one on 6,605 inputs: every length from 0 to 1,100 bytes,
+two- and four-byte UTF-8 at every length that crosses a block, and 5,000 random
+strings. No mismatch.
+
+Then every mutant, not the two the last pass had time for. Fifty of fifty-two
+were killed. The two that lived were the same gap from two sides:
+`chain-unlinked` (the v1 hash stops covering the previous link) and
+`record-link-unchecked` (the walk stops checking that each entry points at the
+one before). New entries are v2, so every record test built v2 entries, and v2
+has sequence numbers that catch a deletion on their own. The legacy test built
+its v1 entries with the same `chainOf` it then checked, so a changed formula
+agreed with itself. But everything a masthead filed before v2 is v1, has no
+numbers, and depends on exactly those two guards.
+
+One new test closes both. It pins two v1 entries to the values the build before
+v2 computed for them — taken from that build's code, not this one's — so a
+drifting formula would be caught before it orphaned anybody's record. Then it
+cuts an entry out of a legacy record; cuts one out and re-points the next entry
+to hide it; and swaps two. Both mutants now die on it, and 52 of 52 are killed.
+
+And `counts.py` no longer counts a harness that could not start as one with no
+checks. It refuses, names the harnesses, and says how to install what they
+need; that was proven by moving the dependencies away and watching it decline
+to touch the landing page.
+
+197 tests.
+

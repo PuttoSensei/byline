@@ -355,17 +355,14 @@ file leaves.
 provider under their terms. The local-model path (Ollama) is the only one where
 nothing leaves the machine.
 
-**A peer rewriting what your correspondent is told to do.** Found on
-2026-09-20 while tracing the forgery below, and still open. When a peer's
-snapshot describes a correspondent whose key is held here, the merge refuses
-its keys, its revocation, and now its delegation and its permission card — and
-takes the rest, which includes `instructions`, `harness`, `model` and `host`.
-With the local helper on, `instructions` is the system prompt of a real agent
-running on this machine. This is read from the code and has not been
-reproduced. It needs a peer you connected to and compared codes with. The fix
-is an allow-list of what a peer may say about a correspondent you hold, and
-that is a decision about what two of your own machines should sync, so it was
-not made in passing.
+**Two of your own machines agreeing about a correspondent.** A masthead export
+carries private keys, so two machines can both hold the same correspondent.
+Since 2026-09-20 neither takes the other's word about it — not its name, its
+avatar, its presence, or what it has learned — because a peer's word about a
+correspondent that runs here turned out to be a way to rewrite its brief (see
+the fixed notes below). Edit it on both, or export again. Nothing signs a
+correspondent's card, so nothing could tell your other machine from anyone
+else you compared codes with.
 
 ---
 
@@ -521,6 +518,22 @@ Tracing that found the quieter version (TM-015): a peer never needed to forge
 anything. It could send `delegation: null` with the card turned up to "files
 directly", and the fallback said yes. For anyone whose key is held here, a
 peer's word on either is no longer taken.
+
+**A peer rewriting what your correspondent is told to do — fixed, and worth
+knowing.** Written down as open when TM-015 was found, from reading the code;
+reproduced and closed later the same day. Striking `delegation` and `policy`
+from what a peer sends left everything else on the card arriving as data, and
+for a correspondent whose key is held here that included `instructions`,
+`harness`, `model` and `host`. With the local helper on, `instructions` is the
+system prompt of a real agent on this machine and `harness` chooses which
+program is run. The test that reproduced it found two more on the way:
+`memories` are written into that prompt as "standing instructions you have been
+given before", and the correspondent's `name` is in it too. So there was
+nothing safe to put in an allow-list, and the rule is the one the merge always
+had for you: whoever files from this machine is described on this machine. It
+needed a peer you had connected to and compared codes with. What it costs is
+under "what it does not protect against", above. What it does not change: a
+peer can still put words on a desk, and a correspondent reads the desk.
 
 If you verified a delegation with a copy of Byline from before this date and
 acted on the answer, check it again.
