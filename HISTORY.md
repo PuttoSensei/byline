@@ -1234,3 +1234,37 @@ Byline's.
 Not done: an installer, signing, macOS and Linux, and passkeys in the window.
 
 197 tests.
+
+### The twenty-ninth pass: an installer, and a signature that cannot lie about itself
+
+`npm run installer` builds a per-user NSIS installer. It needs no
+administrator, lists Byline in Installed apps, and removes it cleanly. Every
+file Tauri signs goes through `desktop/scripts/sign.mjs`: the app, the
+uninstaller, an NSIS plugin and the installer. That script refuses to let the
+build finish without a certificate. The failure it prevents is quiet: an
+installer that came out unsigned and was shipped as if it were not.
+
+There is no trusted certificate on this machine, and getting one takes an
+identity check and a fee. So the pipeline was proven with a throwaway
+self-signed certificate. It lives in a git-ignored folder and is never added
+to any Windows certificate store. `npm run test:installer` builds with it and
+checks the result:
+
+- the installer carries the signature, and one changed byte breaks it;
+- a silent install puts a signed app and a signed uninstaller in place;
+- the installed app passes the whole desktop e2e, 197 in-page tests included;
+- uninstalling leaves no program, registry entry, shortcut or profile.
+
+Two things turned out not to be as assumed. Tauri runs the sign command from
+`src-tauri/`, not from where the build was started, so the first "refusal"
+was really a missing file. It looked identical, because Tauri swallows the
+command's output on failure. The refusal was believed only once the same
+build, with a certificate, succeeded. And Tauri signs the app only inside the
+bundle, then restores `target/release`'s copy unsigned. A test that checked
+that copy was checking the wrong file.
+
+To Windows, a test-signed installer is still from an "Unknown publisher".
+The pipeline is ready for a real certificate: a store or token certificate by
+thumbprint works as it is.
+
+197 tests.

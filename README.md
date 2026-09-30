@@ -85,8 +85,9 @@ offline after one visit, and passkeys need a secure context.
 its keys get storage of their own without running a server. The page keeps
 its own security policy and is given no API into the app. It runs while its
 window is open and not otherwise. See [desktop/README.md](desktop/README.md);
-there is no installer or signed build yet, and passkeys have not been tried in
-it.
+there is a per-user installer and a signing pipeline, tested with a throwaway
+certificate. There is no trusted signature yet, and passkeys have not been
+tried in it.
 
 ### Real agents: the local helper
 

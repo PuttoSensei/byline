@@ -9,7 +9,9 @@
     "build": "tauri build --no-bundle",
     "start": "tauri dev",
     "test:e2e": "node e2e/shell.mjs",
-    "check": "npm run build && npm run test:e2e"
+    "check": "npm run build && npm run test:e2e",
+    "installer": "tauri build --bundles nsis",
+    "test:installer": "node e2e/installer.mjs"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.12.0",

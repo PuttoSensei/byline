@@ -34,8 +34,8 @@ npm run build
 npm run test:e2e
 ```
 
-`npm run build` makes `src-tauri/target/release/byline-desktop.exe` (no
-installer yet). `npm run test:e2e` starts that executable with a throwaway
+`npm run build` makes `src-tauri/target/release/byline-desktop.exe`, unsigned,
+for testing. `npm run test:e2e` starts that executable with a throwaway
 profile, attaches to its WebView2 over the DevTools protocol, and checks:
 
 - the page is served from the app's origin, not `file://`, and is
@@ -62,10 +62,60 @@ e2e fails. All three are caught.
 - No `src-tauri/capabilities/`. Granting even `core:default` lets the page call
   into the app (`plugin:app|version` answered).
 
+## The installer, and signing it
+
+```bash
+npm run installer
+```
+
+makes `src-tauri/target/release/bundle/nsis/Byline_<version>_x64-setup.exe`, a
+per-user installer: no administrator, installed under the user's profile,
+listed in Installed apps, and removable there.
+
+Every file it signs goes through `scripts/sign.mjs`: the app, the uninstaller,
+an NSIS plugin, and the installer itself. **The build refuses to finish
+without a certificate**, so an unsigned installer cannot come out by accident:
+
+| Set | For |
+| --- | --- |
+| `BYLINE_SIGN_THUMBPRINT` | a certificate in the Windows store, including one on a hardware token |
+| `BYLINE_SIGN_PFX`, `BYLINE_SIGN_PFX_PASSWORD` | a certificate file |
+| `BYLINE_SIGN_TIMESTAMP` | a timestamp server (your certificate authority names one). Use it for any release, or the signature stops verifying when the certificate expires |
+| `BYLINE_UNSIGNED=1` | build unsigned on purpose |
+
+It needs `signtool.exe` from the Windows SDK (found automatically, or set
+`BYLINE_SIGNTOOL`). Tauri signs the app only inside the bundle, and leaves
+`target/release/byline-desktop.exe` unsigned.
+
+`npm run test:installer` proves the pipeline without a real certificate:
+
+1. It makes a throwaway self-signed certificate in `.signing/` (ignored by
+   git, never added to any Windows certificate store, valid 30 days) and
+   builds with it.
+2. It checks that the installer is signed by it, that one changed byte breaks
+   the signature, and that the check can tell this signature from another.
+3. It installs silently into a temporary folder and checks that the installed
+   app and uninstaller are signed, and that the app is listed with a Start
+   menu shortcut.
+4. It runs the whole desktop e2e above against the installed app.
+5. It uninstalls, then checks that the program, its registry entry and its
+   shortcuts are gone, and that no profile was left behind.
+
+It refuses to run if Byline is already installed for the user.
+
+**A test-signed installer is still from an "Unknown publisher".** Nothing
+trusts the test certificate, so to Windows it is no better than unsigned.
+Removing that warning takes a code-signing certificate from a certificate
+authority. That means an identity check, a fee, and today a private key held
+on a hardware token or in a cloud signing service. SmartScreen can still warn
+for a while after that, until the signed installer builds a download
+reputation. A store or token certificate works with `BYLINE_SIGN_THUMBPRINT`
+as it is. A cloud signing service would need its own branch in
+`scripts/sign.mjs`.
+
 ## Not done yet
 
-- No installer, code signing or auto-update. The executable is unsigned, so
-  Windows SmartScreen will warn on another machine.
+- No trusted signature: see above. No auto-update.
 - Only Windows has been built and tested. macOS and Linux (WKWebView,
   WebKitGTK) have not been tried.
 - The service worker is staged but not relied on: the app has no offline mode

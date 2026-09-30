@@ -25,7 +25,7 @@ import path from 'node:path';
 const here = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'));
 const desktop = path.resolve(here, '..');
 const repo = path.resolve(desktop, '..');
-const exe = path.join(desktop, 'src-tauri', 'target', 'release', 'byline-desktop.exe');
+const exe = process.env.BYLINE_EXE || path.join(desktop, 'src-tauri', 'target', 'release', 'byline-desktop.exe');
 const repoHtml = readFileSync(path.join(repo, 'byline.html'));
 const repoSha = createHash('sha256').update(repoHtml).digest('hex');
 const declaredTests = (repoHtml.toString('utf8').match(/\bawait t\('/g) || []).length;
