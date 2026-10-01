@@ -36,6 +36,8 @@ jobs:
     defaults:
       run:
         working-directory: desktop
+    env:
+      BUNDLE: src-tauri/target/universal-apple-darwin/release/bundle
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -49,17 +51,17 @@ jobs:
       - name: Check the bundle
         run: |
           set -euo pipefail
-          B=src-tauri/target/universal-apple-darwin/release/bundle
+          B="$BUNDLE"
           APP="$B/macos/Byline.app"
           ls -la "$B/macos" "$B/dmg"
           /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Contents/Info.plist"
           BIN="$APP/Contents/MacOS/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP/Contents/Info.plist")"
           lipo -archs "$BIN" | tee /dev/stderr | grep -q 'x86_64' && lipo -archs "$BIN" | grep -q 'arm64'
           codesign --verify --deep --strict --verbose=2 "$APP"
-          codesign -dv "$APP" 2>&1 | grep -E 'Signature|Identifier|Format'
+          # Apple silicon kills an unsigned arm64 app at launch; ad-hoc is the least it needs.
+          codesign -dv "$APP" 2>&1 | tee /dev/stderr | grep -q 'Signature=adhoc'
           hdiutil verify "$B"/dmg/*.dmg
           echo "BIN=$BIN" >> "$GITHUB_ENV"
-          echo "BUNDLE=$B" >> "$GITHUB_ENV"
       - name: Launch it, and photograph the window
         run: |
           set -euo pipefail
