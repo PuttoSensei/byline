@@ -21,6 +21,11 @@ const src = readFileSync(SRC, 'utf8');
 /* group: which slice of the suite to run (?only=)
    expect: a substring of the test name that MUST go red */
 const MUTATIONS = [
+  { id: 'byline-never-upgraded', group: 'Bylines',
+    what: 'a line keeps its placeholder byline for good, with no ECDSA signature',
+    find: "    m.sig = await signReal(m, author); m.alg = 'ecdsa-p256';",
+    to: "    await signReal(m, author); /* mutated: the real byline is never applied */" },
+
   { id: 'chain-unlinked', group: 'The record,Anchoring',
     what: 'the hash chain stops including the previous link',
     find: "digest('chain:' + (e.prev || 'genesis') + '|'",

@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-H1JJbtJyqeKZpvzGauyOuypU7IKrlWcxU3qUlLs65Us='; style-src 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: data:; connect-src *; font-src 'self' data:; worker-src 'self' blob:; manifest-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-/FexWJdMhhAieblT/HOfAUnf7GiVAOivBwiz9TOBunE='; style-src 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: data:; connect-src *; font-src 'self' data:; worker-src 'self' blob:; manifest-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#0d0d0e">
 <link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22Byline%22%2C%22short_name%22%3A%22Byline%22%2C%22description%22%3A%22A%20signed%20newsroom%20where%20AI%20correspondents%20work%20alongside%20people.%22%2C%22start_url%22%3A%22.%22%2C%22scope%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%230d0d0e%22%2C%22theme_color%22%3A%22%230d0d0e%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%2C%253Csvg%2520xmlns%253D%2522http%253A%252F%252Fwww.w3.org%252F2000%252Fsvg%2522%2520viewBox%253D%25220%25200%2520512%2520512%2522%253E%253Crect%2520width%253D%2522512%2522%2520height%253D%2522512%2522%2520rx%253D%252296%2522%2520fill%253D%2522%25230d0d0e%2522%252F%253E%253Ctext%2520x%253D%2522256%2522%2520y%253D%2522352%2522%2520text-anchor%253D%2522middle%2522%2520font-family%253D%2522Georgia%252Cserif%2522%2520font-size%253D%2522300%2522%2520font-weight%253D%2522700%2522%2520fill%253D%2522%2523e8412f%2522%253EB%253C%252Ftext%253E%253C%252Fsvg%253E%22%2C%22sizes%22%3A%22any%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%2C%22purpose%22%3A%22any%22%7D%5D%7D">
@@ -9644,6 +9644,16 @@ async function runTests() {
     paintTests(R, true);
   };
   const sleep2 = ms => new Promise(r => setTimeout(r, ms));
+  /* A line is signed twice: a placeholder at once, so rendering never waits,
+     then the real ECDSA byline when WebCrypto answers. A fixed pause raced
+     that upgrade: Safari's first signature after startup took longer than
+     120ms, and a placeholder checked as if it were ECDSA reads as forged.
+     Wait for the upgrade itself, and if it never comes, say so: a line left on
+     its placeholder for good is a different failure from a bad signature. */
+  const signedReal = async (m, ms = 5000) => {
+    for (const until = Date.now() + ms; m.alg !== 'ecdsa-p256' && Date.now() < until;) await sleep2(25);
+    if (m.alg !== 'ecdsa-p256') throw new Error(`never upgraded to an ECDSA byline within ${ms}ms (alg ${m.alg || 'none'})`);
+  };
   /* A run that hangs reports nothing, and nothing looks exactly like a
      browser that never started. Twice a deliberately broken build hung the
      headless run instead of failing it, and the only way to see what had
@@ -9692,7 +9702,7 @@ async function runTests() {
   });
   await t('Bylines', 'signature verifies, and tampering breaks it', async () => {
     const m = postMessage({ channelId: desk.id, authorId: meP.id, text: 'byline test' });
-    await sleep2(120);
+    await signedReal(m);
     eq(await verifyReal(m), true, 'fresh signature:');
     const keep = m.text; m.text = 'tampered';
     eq(await verifyReal(m), false, 'after tampering:');
@@ -9702,7 +9712,7 @@ async function runTests() {
   });
   await t('Bylines', 'renaming an attachment invalidates the signature', async () => {
     const m = postMessage({ channelId: desk.id, authorId: meP.id, text: 'with a file', att: [{ name: 'a.csv', size: 10, type: 'text/csv' }] });
-    await sleep2(120);
+    await signedReal(m);
     eq(await verifyReal(m), true, 'signed with attachment:');
     m.att[0].name = 'evil.csv';
     eq(await verifyReal(m), false, 'after rename:');
@@ -10038,7 +10048,7 @@ async function runTests() {
     speakInto(scout.id, 'second thing said');
     const lines = msgs(hc.id);
     eq(lines.length, 2, 'lines captured:');
-    await sleep2(200);                       // the real signature is applied just after the line renders
+    await signedReal(lines[0]);              // the real signature is applied just after the line renders
     eq(bylineState(lines[0]), 'ok', 'each line carries a verifiable byline:');
     eq(S.people[lines[1].authorId].name, 'Scout', 'attributed to the speaker:');
   });

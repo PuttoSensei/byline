@@ -1268,3 +1268,37 @@ The pipeline is ready for a real certificate: a store or token certificate by
 thumbprint works as it is.
 
 197 tests.
+
+### The thirtieth pass: Linux, the Mac, and the first time Byline met Safari
+
+The desktop app now builds for Linux and macOS as well as Windows.
+
+Linux is built in Docker on Ubuntu 22.04 (`desktop/linux/`), as a `.deb` and
+an AppImage. Each is driven over WebDriver through `tauri-driver`, with the
+same checks as on Windows. Both pass 11 of 11, including all 197 in-page
+tests on WebKitGTK 2.50: Byline's first run in any WebKit engine. Each
+package was then started on a distribution that had never seen it. A
+screenshot check caught what "still running" would have passed: without
+Mesa's `libGLESv2`, the AppImage stayed up and drew a black window. So the
+smoke test now counts colours, and a blank window fails.
+
+The Mac is built on GitHub's macOS runners (`.github/workflows/desktop.yml`).
+The first build had no code signature at all, and Apple silicon will not
+launch an unsigned arm64 app. It is now ad-hoc signed, and the workflow
+checks for that. The app ran and drew its first screen on macOS 26.
+
+Safari ran the suite for the first time and failed two tests: a fresh
+signature that did not verify. Signing was not broken. A line is signed
+twice, with a placeholder at once and the real ECDSA byline when WebCrypto
+answers, and the tests waited a fixed 120ms for the second. Safari's first
+signature after startup took longer, and the placeholder, checked as if it
+were ECDSA, read as forged.
+
+That was proven in Chrome before anything changed. With the real signature
+delayed 400ms, the old tests failed with Safari's exact two messages, and the
+new ones passed. The new ones wait for the upgrade itself, and fail in plain
+words if it never comes. A new mutant, `byline-never-upgraded`, makes sure
+they do. It is a different failure from a bad signature, and the old tests
+could not tell the two apart.
+
+197 tests.
