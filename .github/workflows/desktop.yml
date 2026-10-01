@@ -20,6 +20,7 @@ jobs:
       - name: Build the toolchain image
         run: docker build -t byline-desktop-linux desktop/linux
       - name: Build the .deb and AppImage, install the .deb, run the e2e against it
+        timeout-minutes: 30
         run: |
           mkdir -p desktop/linux/out
           docker run --rm -v "$PWD:/src:ro" -v "$PWD/desktop/linux/out:/out" \

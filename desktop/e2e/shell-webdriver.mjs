@@ -42,7 +42,7 @@ function freePort() {
 async function launch(home) {
   const port = await freePort(), native = await freePort();
   const env = { ...process.env, HOME: home, XDG_DATA_HOME: path.join(home, 'data'), XDG_CACHE_HOME: path.join(home, 'cache'), XDG_CONFIG_HOME: path.join(home, 'config') };
-  const driver = spawn('tauri-driver', ['--port', String(port), '--native-port', String(native)], { env, stdio: ['ignore', 'ignore', 'pipe'] });
+  const driver = spawn('tauri-driver', ['--port', String(port), '--native-port', String(native)], { env, stdio: ['ignore', 'ignore', 'pipe'], detached: true });
   let driverErr = ''; driver.stderr.on('data', d => { driverErr += d; });
   const base = `http://127.0.0.1:${port}`;
   const wd = async (method, p, body) => {
@@ -72,7 +72,13 @@ async function launch(home) {
     goto: url => wd('POST', `/session/${sid}/url`, { url }),
     async close() {
       await wd('DELETE', `/session/${sid}`).catch(() => {});
-      driver.kill('SIGTERM'); await sleep(800);
+      // tauri-driver starts WebKitWebDriver, which starts the app (and an
+      // AppImage starts it through AppRun). Killing tauri-driver alone left
+      // that tree alive, holding the pipe this process reads, and Node never
+      // exited: CI sat for 54 minutes after every check had passed. So it runs
+      // in its own process group, and the whole group goes.
+      try { process.kill(-driver.pid, 'SIGKILL'); } catch { /* already gone */ }
+      driver.stderr.destroy(); await sleep(800);
     },
   };
 }
@@ -157,4 +163,6 @@ try {
   rmSync(tmp, { recursive: true, force: true });
 }
 console.log(`\n${pass} pass, ${fail} fail`);
-process.exitCode = fail ? 1 : 0;
+// Exit with the verdict rather than wait for every handle to close: a test
+// that has finished must never be what holds a build open.
+process.exit(fail ? 1 : 0);
