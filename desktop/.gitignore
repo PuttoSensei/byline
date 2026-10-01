@@ -4,3 +4,4 @@ src-tauri/target/
 src-tauri/gen/
 .e2e/
 .signing/
+linux/out/

@@ -113,10 +113,55 @@ reputation. A store or token certificate works with `BYLINE_SIGN_THUMBPRINT`
 as it is. A cloud signing service would need its own branch in
 `scripts/sign.mjs`.
 
+## Linux
+
+Built and tested in Docker, so any machine with Docker can do it. From the
+repository root:
+
+```bash
+docker build -t byline-desktop-linux desktop/linux
+docker run --rm -v "$PWD:/src:ro" -v "$PWD/desktop/linux/out:/out" -v byline-cargo:/usr/local/cargo/registry -v byline-target:/target byline-desktop-linux bash /src/desktop/linux/run.sh
+```
+
+That builds `Byline_<version>_amd64.deb` and `Byline_<version>_amd64.AppImage`
+into `desktop/linux/out/`, on Ubuntu 22.04 so the AppImage runs on newer
+distributions too. It then installs the `.deb` and runs `e2e/shell-webdriver.mjs`
+against it and against the AppImage. That e2e makes the Windows checks over
+WebDriver (`tauri-driver`), because WebKitGTK has no DevTools protocol. The
+origin is `tauri://localhost`, a secure context with WebCrypto.
+
+`desktop/linux/smoke.sh` then starts each package somewhere that has never
+seen it:
+
+- the `.deb` on a clean Ubuntu 24.04, where apt resolves its dependencies;
+- the AppImage on a clean Debian 12 with only the graphics, X11, Wayland and
+  font libraries every desktop has. No GTK and no WebKit: the AppImage brings
+  its own.
+
+Each must still be running after 20 seconds and must have drawn its page. A
+live but blank window fails; the check counts the colours in a screenshot.
+Without Mesa's `libGLESv2`, the AppImage ran and drew nothing. Any real desktop
+has `libGLESv2`; a bare container does not.
+
+## macOS
+
+There is no Mac here, so `.github/workflows/desktop.yml` builds on GitHub's
+macOS runners. It makes a universal `.app` (Apple silicon and Intel) and a
+`.dmg`, checks the bundle and its signature, launches the app and photographs
+the window. It also runs the whole in-page suite in Safari
+(`e2e/safari-suite.mjs`). The Mac window is WKWebView, Safari's engine, and
+WKWebView inside an app cannot be driven by WebDriver. The same workflow
+repeats the Linux build.
+
+The app is ad-hoc signed only. Without an Apple Developer ID and
+notarization, macOS refuses to open it until the user allows it in Privacy &
+Security.
+
 ## Not done yet
 
 - No trusted signature: see above. No auto-update.
-- Only Windows has been built and tested. macOS and Linux (WKWebView,
-  WebKitGTK) have not been tried.
+- Linux was tested in containers under a virtual display, not on a real
+  desktop session (GNOME, KDE, Wayland). Only x86-64 was built.
+- macOS has not been seen yet: the workflow above has to run first.
 - The service worker is staged but not relied on: the app has no offline mode
   beyond what the page already does.

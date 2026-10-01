@@ -1,0 +1,86 @@
+# Builds the desktop app for macOS and Linux, and tests what can be tested
+# on each. Windows is built and tested on a Windows machine (desktop/README.md).
+name: desktop
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['byline.html', 'byline-sw.js', 'desktop/**', '.github/workflows/desktop.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the toolchain image
+        run: docker build -t byline-desktop-linux desktop/linux
+      - name: Build the .deb and AppImage, install the .deb, run the e2e against it
+        run: |
+          mkdir -p desktop/linux/out
+          docker run --rm -v "$PWD:/src:ro" -v "$PWD/desktop/linux/out:/out" \
+            byline-desktop-linux bash /src/desktop/linux/run.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: byline-linux
+          path: desktop/linux/out/*
+          if-no-files-found: error
+
+  macos:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Rust for both Mac architectures
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+      - run: npm ci --no-audit --no-fund
+      - name: Build a universal .app and .dmg
+        run: npx tauri build --target universal-apple-darwin --bundles app,dmg
+      - name: Check the bundle
+        run: |
+          set -euo pipefail
+          B=src-tauri/target/universal-apple-darwin/release/bundle
+          APP="$B/macos/Byline.app"
+          ls -la "$B/macos" "$B/dmg"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Contents/Info.plist"
+          BIN="$APP/Contents/MacOS/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP/Contents/Info.plist")"
+          lipo -archs "$BIN" | tee /dev/stderr | grep -q 'x86_64' && lipo -archs "$BIN" | grep -q 'arm64'
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          codesign -dv "$APP" 2>&1 | grep -E 'Signature|Identifier|Format'
+          hdiutil verify "$B"/dmg/*.dmg
+          echo "BIN=$BIN" >> "$GITHUB_ENV"
+          echo "BUNDLE=$B" >> "$GITHUB_ENV"
+      - name: Launch it, and photograph the window
+        run: |
+          set -euo pipefail
+          "$BIN" & PID=$!
+          sleep 15
+          kill -0 "$PID" && echo "still running after 15s"
+          screencapture -x "$RUNNER_TEMP/byline-macos.png" || echo "no screenshot (screen recording not permitted)"
+          kill "$PID"
+      - name: The in-page suite in Safari (the engine the Mac window uses)
+        run: |
+          sudo safaridriver --enable
+          node e2e/safari-suite.mjs
+      - name: Package
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/out"
+          cp "$BUNDLE"/dmg/*.dmg "$RUNNER_TEMP/out/" || true
+          ditto -c -k --keepParent "$BUNDLE/macos/Byline.app" "$RUNNER_TEMP/out/Byline-macos-universal.app.zip" || true
+          cp "$RUNNER_TEMP/byline-macos.png" "$RUNNER_TEMP/out/" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: byline-macos
+          path: ${{ runner.temp }}/out/*
