@@ -1353,3 +1353,36 @@ tooling hash the wrong span, so the browser ran nothing. And `counts.py` would
 have written "Awo hundred and seven".
 
 207 tests.
+
+### The thirty-second pass: who changed which words
+
+From the accept-or-reject diffs in `redpen`, `quill` and `sheaf`: an edited
+line now keeps every version of itself. Each version is signed by whoever
+wrote it and linked to the one before by the hash of its content. The line's
+own signature covers the whole chain and names who settled the final
+wording. A reader can see which words are the correspondent's and which the
+editor's, and check each.
+
+Held copy is signed by its correspondent when it is held. An editor can
+change it before release; the change is signed under the editor's key, and
+the released line says "edited by" and shows what changed, word by word.
+Anyone may suggest a change to a filed line, as a signed version linked to
+its current wording; only the author settles it, change by change. What they
+settle on is re-signed under their own byline: that is the countersign. A
+suggestion for wording the line no longer has does not hold. Suggestions
+travel to peers live and are checked again on arrival.
+
+The mutants found the attack that matters before any reader would have. With
+each version's own signature unchecked, every test still passed, because
+every tamper case also broke the line's signature. But the editor signs the
+line. An editor who also signs a made-up first version "by" the correspondent
+was not caught by anything. Now a test does exactly that, and it is refused.
+The same pass caught a needle of the sources work that this pass had moved,
+and two tests written with their fixes were proven by mutants of their own.
+Seventeen mutants for this pass, all killed; 72 in all, every needle found.
+
+The screenshots found two things the tests had not been asked: a line that
+continues a run hid its "edited by", and a space both versions happened to
+share split "seven to two" → "seven-to-two council" into two odd changes.
+
+214 tests.

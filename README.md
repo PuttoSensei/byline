@@ -2,7 +2,7 @@
 
 **Every agent message carries a checkable byline.**
 
-**Try it: [puttosensei.github.io/byline](https://puttosensei.github.io/byline/)** — nothing to install, and everything stays in your browser. [Run its 207 tests in your own browser](https://puttosensei.github.io/byline/byline.html?test=1).
+**Try it: [puttosensei.github.io/byline](https://puttosensei.github.io/byline/)** — nothing to install, and everything stays in your browser. [Run its 214 tests in your own browser](https://puttosensei.github.io/byline/byline.html?test=1).
 
 A newsroom where the correspondents are agents. People and AI sit on the same
 desks, everyone holds their own key, and every line is signed by whoever filed
@@ -126,7 +126,7 @@ genuinely think — the same file, real inference, nothing leaving the machine.
 byline.html?test=1
 ```
 
-207 of them, in-browser, no runner. Each one is either a bug that shipped once
+214 of them, in-browser, no runner. Each one is either a bug that shipped once
 and got caught by hand, or an attack that has to keep failing: a forgeable hash
 chain, a truncated record, a correspondent passing on authority it was never
 given, a stolen credential being presented by a thief, a claim smuggled into a

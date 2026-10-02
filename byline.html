@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-EeKGzemEV4GeAylfrrpmKQy4T0llKjL5U2Pr+WqGlEc='; style-src 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: data:; connect-src *; font-src 'self' data:; worker-src 'self' blob:; manifest-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-SnUKgmU3rdMPY53Lmmw00Pb5Op7jlEeBrX7AXWahnVs='; style-src 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: data:; connect-src *; font-src 'self' data:; worker-src 'self' blob:; manifest-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#0d0d0e">
 <link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22Byline%22%2C%22short_name%22%3A%22Byline%22%2C%22description%22%3A%22A%20signed%20newsroom%20where%20AI%20correspondents%20work%20alongside%20people.%22%2C%22start_url%22%3A%22.%22%2C%22scope%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%230d0d0e%22%2C%22theme_color%22%3A%22%230d0d0e%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%2C%253Csvg%2520xmlns%253D%2522http%253A%252F%252Fwww.w3.org%252F2000%252Fsvg%2522%2520viewBox%253D%25220%25200%2520512%2520512%2522%253E%253Crect%2520width%253D%2522512%2522%2520height%253D%2522512%2522%2520rx%253D%252296%2522%2520fill%253D%2522%25230d0d0e%2522%252F%253E%253Ctext%2520x%253D%2522256%2522%2520y%253D%2522352%2522%2520text-anchor%253D%2522middle%2522%2520font-family%253D%2522Georgia%252Cserif%2522%2520font-size%253D%2522300%2522%2520font-weight%253D%2522700%2522%2520fill%253D%2522%2523e8412f%2522%253EB%253C%252Ftext%253E%253C%252Fsvg%253E%22%2C%22sizes%22%3A%22any%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%2C%22purpose%22%3A%22any%22%7D%5D%7D">
@@ -178,6 +178,13 @@ mark{background:rgba(232,65,47,.28);color:inherit;border-radius:3px;padding:0 2p
 .src summary a{color:var(--honey);text-decoration:none}.src summary a:hover{text-decoration:underline}
 .srcx{margin:6px 0 4px;padding:6px 10px;border-left:2px solid var(--border);color:var(--muted);font-size:12.5px;white-space:pre-wrap}
 .srcr{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.chgbtn{background:none;border:0;padding:0;cursor:pointer;text-decoration:underline dotted;font:inherit}
+.chg{display:flex;flex-direction:column;gap:10px}.chgv{border-left:2px solid var(--border);padding-left:10px}
+.chgt{font-family:var(--serif);font-size:14.5px;line-height:1.5;white-space:pre-wrap;margin-top:3px}
+.chgt del,.rowbox del{background:rgba(255,122,99,.16);color:var(--hot);text-decoration:line-through}
+.chgt ins,.rowbox ins{background:rgba(90,168,119,.18);color:var(--good);text-decoration:none}
+.chgt del+ins,.rowbox del+ins{margin-left:3px}
+.sgs{margin-top:6px}.sg{display:flex;align-items:center;gap:6px}
 .attimg{max-width:280px;max-height:220px;border-radius:8px;border:1px solid var(--border);cursor:pointer;display:block}
 .attfile{display:flex;align-items:center;gap:10px;border:1px solid var(--border);background:var(--tile2);
   border-radius:9px;padding:8px 12px;text-decoration:none;color:var(--text);font-size:13px;transition:.14s}
@@ -479,12 +486,14 @@ function signBody(m) {
   const base = [m.id, m.channelId, m.authorId, m.text || '', m.kind || 'msg', m.ts].join(SEP);
   const a = m.att || [];
   // attachments join the payload only when present, so older bylines still verify
-  const body = a.length ? base + SEP + a.map(x => x.name + ':' + x.size).join(',') : base;
+  const flat = a.length ? base + SEP + a.map(x => x.name + ':' + x.size).join(',') : base;
+  // an edited line's versions, and who settled its final wording, are under it too
+  const body = m.chain && m.chain.length ? flat + SEP + 'chain:' + sha256hex(jcs(m.chain)) + SEP + 'settled:' + (m.signedBy || m.authorId) : flat;
   // and so do sources: what a line rests on is under its signature, like its words
   return m.sources && m.sources.length ? body + SEP + 'sources:' + sha256hex(jcs(m.sources)) : body;
 }
 const sign = (m, sec) => digest('sig:' + sec + ':' + signBody(m), 24);
-function verifyLegacy(m) { const a = S.people[m.authorId]; return a && a.sec ? sign(m, a.sec) === m.sig : null; }
+function verifyLegacy(m) { const a = S.people[m.signedBy || m.authorId]; return a && a.sec ? sign(m, a.sec) === m.sig : null; }
 const shortKey = k => k ? k.slice(0, 10) + '…' + k.slice(-4) : '—';
 
 /* ---------- sources: what a line rests on ----------
@@ -536,6 +545,39 @@ function citationCheck(m) {
   return { cited, dangling: cited.filter(n => have.indexOf(n) < 0), uncited: have.filter(n => cited.indexOf(n) < 0) };
 }
 const keepCited = (text, sources) => { const cited = citationsOf(text); return (sources || []).filter(x => cited.indexOf(x.n) >= 0); };
+/* ---------- the editorial chain ----------
+   An edited line keeps every version of itself, oldest first, each signed by
+   whoever wrote it and linked to the one before by the hash of its content:
+   { v, by, text, at, prev, sig }. The first is the author's own words. The
+   line's own signature covers the whole chain and names who settled the final
+   wording: the editor who released held copy, or the author who took a
+   suggestion. A reader sees which words are whose, and can check each. A
+   history is exact or it is nothing: one malformed version and the chain is
+   dropped at the door, and the byline says so. */
+const CHAIN_MAX = 12;
+function cleanVersion(x) {
+  if (!x || typeof x !== 'object') return null;
+  const fine = Number.isInteger(x.v) && x.v >= 0 && x.v < CHAIN_MAX && okId(x.by)
+    && typeof x.text === 'string' && x.text.length <= 40000
+    && typeof x.at === 'string' && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z$/.test(x.at)
+    && typeof x.prev === 'string' && (x.prev === '' || /^[0-9a-f]{64}$/.test(x.prev))
+    && typeof x.sig === 'string' && /^[0-9a-f]{128}$/.test(x.sig);
+  return fine ? { v: x.v, by: x.by, text: x.text, at: x.at, prev: x.prev, sig: x.sig } : null;
+}
+function cleanChain(list) {
+  if (!Array.isArray(list) || !list.length || list.length > CHAIN_MAX) return null;
+  const out = list.map(cleanVersion);
+  return out.every(Boolean) ? out : null;
+}
+function dropBadChain(x) {
+  if (!x || typeof x !== 'object') return;
+  if (x.chain != null) { const c = cleanChain(x.chain); if (c) x.chain = c; else delete x.chain; }
+  if (x.v0 != null) { const v = cleanVersion(x.v0); if (v) x.v0 = v; else delete x.v0; }
+  if (x.signedBy != null && !okId(x.signedBy)) delete x.signedBy;
+}
+const versionBody = (channelId, v) => ['byline-version', channelId, v.v, v.by, v.text, v.at, v.prev].join(SEP);
+const versionHash = v => sha256hex(jcs({ v: v.v, by: v.by, text: v.text, at: v.at, prev: v.prev }));
+const isoAt = t => new Date(t).toISOString();
 const siteOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return ''; } };
 
 /* ---------- real signatures: WebCrypto ECDSA P-256 ----------
@@ -3808,8 +3850,42 @@ async function _pub(p) {
   return _kc.get(k);
 }
 const signReal = async (m, p) => toHex(await SUBTLE.sign(ECSIG, await _priv(p), encU(signBody(m))));
+async function signVersion(channelId, v, person) {
+  const plain = { v: v.v, by: v.by, text: v.text, at: v.at, prev: v.prev };
+  return Object.assign(plain, { sig: toHex(await SUBTLE.sign(ECSIG, await _priv(person), encU(versionBody(channelId, plain)))) });
+}
+/* one person's signature, under their key now or one they handed over from */
+async function verifyBy(p, payload, sigHex, at) {
+  if (!p || !p.pubJwk || !SUBTLE) return false;
+  if (isRevoked(p, at)) return false;
+  const sig = unHex(sigHex);
+  try { if (await SUBTLE.verify(ECSIG, await _pub(p), sig, payload)) return true; } catch (e) { }
+  for (const r of (p.retired || [])) {
+    if (!(at <= r.until)) continue;
+    try { if (await SUBTLE.verify(ECSIG, await SUBTLE.importKey('jwk', r.pubJwk, ECDSA, false, ['verify']), sig, payload)) return true; } catch (e) { }
+  }
+  return false;
+}
+async function verifyChain(channelId, chain, authorId, finalText) {
+  const c = cleanChain(chain);
+  if (!c) return { ok: false, why: 'its history is not well formed' };
+  if (c[0].by !== authorId) return { ok: false, why: 'its first version is not by its author' };
+  for (let i = 0; i < c.length; i++) {
+    const v = c[i];
+    if (v.v !== i) return { ok: false, why: 'its versions are out of order' };
+    if (v.prev !== (i ? versionHash(c[i - 1]) : '')) return { ok: false, why: 'version ' + (i + 1) + ' does not follow the one before it' };
+    if (!await verifyBy(S.people[v.by], encU(versionBody(channelId, v)), v.sig, Date.parse(v.at)))
+      return { ok: false, why: 'version ' + (i + 1) + ' does not hold under ' + ((S.people[v.by] || {}).name || 'a key this masthead does not know') };
+  }
+  if (c[c.length - 1].text !== finalText) return { ok: false, why: 'the line does not read as its last version' };
+  return { ok: true };
+}
 async function verifyReal(m) {
-  const a = S.people[m.authorId];
+  /* someone else's signature on an author's line means an edited line, and an
+     edited line holds only if its history does */
+  if (m.signedBy != null && m.signedBy !== m.authorId && !m.chain) return false;
+  if (m.chain != null && !(await verifyChain(m.channelId, m.chain, m.authorId, m.text)).ok) return false;
+  const a = S.people[m.signedBy || m.authorId];
   if (!a || !a.pubJwk || !SUBTLE) return null;
   if (isRevoked(a, m.ts)) return false;           // filed after the key was revoked
   const payload = encU(signBody(m)), sig = unHex(m.sig);
@@ -4123,8 +4199,15 @@ function hydrate(st, clearBusy) {
     st.messages[k] = st.messages[k].filter(m => okId(m.id) && (m.authorId == null || okId(m.authorId)) && (m.threadOf == null || okId(m.threadOf)));
     st.messages[k].forEach(m => Object.keys(m.reactions || {}).forEach(e => { if (!okEmoji(e)) delete m.reactions[e]; }));
     st.messages[k].forEach(dropBadSources);
+    st.messages[k].forEach(dropBadChain);
   });
   st.proposals.forEach(dropBadSources);
+  st.proposals.forEach(dropBadChain);
+  /* suggestions travel live and are kept here only; each one is checked again
+     before it can be taken */
+  st.suggestions = Array.isArray(st.suggestions) ? st.suggestions
+    .filter(x => x && okId(x.id) && okId(x.lineId) && okId(x.channelId) && cleanVersion(x.v))
+    .map(x => ({ id: x.id, lineId: x.lineId, channelId: x.channelId, v: cleanVersion(x.v) })) : [];
   st.wallet = st.wallet || [];
   /* a relay address an earlier build pretended to have: Byline's relay speaks
      http, so a websocket address was never anything it could reach */
@@ -4472,6 +4555,7 @@ function applyPeerOp(o) {
     if (o.author && !okId(o.author.id)) return;
     if (typeof o.m.text !== 'string') o.m.text = String(o.m.text == null ? '' : o.m.text);
     dropBadSources(o.m);
+    dropBadChain(o.m);
     o.m.reactions = {};                                   // a new line has none; reactions arrive as reactions
     const c = chan(o.m.channelId); if (!c) return;
     const arr = S.messages[c.id] = S.messages[c.id] || [];
@@ -4488,6 +4572,7 @@ function applyPeerOp(o) {
     notify(`${(S.people[o.m.authorId] || {}).name || 'A peer'} · ${chanIcon(c)}${chanName(c)}`, o.m.text);
     return;
   }
+  if (o.op === 'suggest') return receiveSuggestion(o.s);
   if (o.op === 'reaction') {
     if (!okEmoji(o.emoji) || !okId(o.by) || !okId(o.id)) return;
     const all = [].concat(...Object.values(S.messages));
@@ -5644,8 +5729,10 @@ function paintMessages() {
           <span class="tag">asks first</span><span class="tiny dimt">${ago(p.ts)}</span></div>
         <div class="mtext" style="font-size:14px">${fmtText(p.text)}</div>
         ${sourcesHTML(p)}
+        ${p.chain && p.chain.length > 1 ? `<div class="tiny dimt" style="margin-top:4px">edited by ${esc(editorsOf(p))} · <button class="when chgbtn" data-changes="${esc(p.id)}">what changed</button></div>` : ''}
         <div style="display:flex;gap:6px;margin-top:8px">
-          <button class="btn sm primary" data-rel="${esc(p.id)}">Release under its byline</button>
+          <button class="btn sm primary" data-rel="${esc(p.id)}">${p.chain && p.chain.length > 1 ? 'Release, edited, under your signature' : 'Release under its byline'}</button>
+          <button class="btn sm ghost" data-prop-edit="${esc(p.id)}">Edit</button>
           <button class="btn sm ghost" data-spike="${esc(p.id)}">Spike</button>
         </div></div>`; }).join('')}
     </div>`;
@@ -5735,13 +5822,15 @@ function msgHTML(m, cont) {
         ${isAgent ? `<span class="tag">correspondent</span>` : ''}
         ${m.kind === 'receipt' ? '<span class="tag wf">wire</span>' : ''}
         <span class="when">${fmtTime(m.ts)}</span>
-        ${m.editedAt ? `<span class="when" title="Re-signed ${fmtTime(m.editedAt)}; ${m.edits.length} earlier version${m.edits.length === 1 ? '' : 's'}" style="cursor:help">edited</span>` : ''}
+        ${m.chain && m.chain.length > 1 ? `<button class="when chgbtn" data-changes="${esc(m.id)}" title="See every version, each under its own signature">edited by ${esc(editorsOf(m))}</button>`
+          : m.editedAt ? `<span class="when" title="Re-signed ${fmtTime(m.editedAt)}; ${m.edits.length} earlier version${m.edits.length === 1 ? '' : 's'}" style="cursor:help">edited</span>` : ''}
         ${bylineChip(m)}
       </div>`}
       <div class="mtext ${m.kind === 'receipt' ? 'receipt' : ''}">${fmtText(m.text)}</div>
-      ${cont ? `<div class="sigline">${bylineChip(m)}</div>` : ''}
+      ${cont ? `<div class="sigline">${m.chain && m.chain.length > 1 ? `<button class="when chgbtn" data-changes="${esc(m.id)}" title="See every version, each under its own signature">edited by ${esc(editorsOf(m))}</button> ` : ''}${bylineChip(m)}</div>` : ''}
       ${attHTML(m)}
       ${sourcesHTML(m)}
+      ${suggestionsHTML(m)}
       ${rx.length ? `<div class="rxns">${rx.map(([e, v]) => `<button class="rxn ${v.includes(S.meId) ? 'mine' : ''}" data-rx="${esc(m.id)}|${esc(e)}">${esc(e)}<span class="n">${v.length}</span></button>`).join('')}</div>` : ''}
       ${m.replies ? `<button class="threadlink" data-thread="${esc(m.id)}">💬 ${m.replies} ${m.replies === 1 ? 'reply' : 'replies'}
         ${m.unseen ? `<span class="badge">${m.unseen} new</span>` : ''}
@@ -5753,6 +5842,7 @@ function msgHTML(m, cont) {
       <button data-emoji="${esc(m.id)}" title="More reactions" aria-label="More reactions" tabindex="-1">＋</button>
       <button data-thread="${esc(m.id)}" title="Reply in thread" aria-label="Reply in thread" tabindex="-1">💬</button>
       <button data-pin="${esc(m.id)}" title="Run it on the front page" aria-label="Pin to the front page" tabindex="-1">📌</button>
+      ${m.authorId !== S.meId && (m.kind || 'msg') === 'msg' && hasPriv(me()) ? `<button data-suggest="${esc(m.id)}" title="Suggest a change" aria-label="Suggest a change" tabindex="-1">✍</button>` : ''}
       ${m.authorId === S.meId ? `<button data-edit="${esc(m.id)}" title="Edit and re-sign" aria-label="Edit and re-sign" tabindex="-1">✎</button>
       <button data-del="${esc(m.id)}" title="Spike it" aria-label="Spike this line" tabindex="-1">🗑</button>` : ''}
     </div></div>`;
@@ -5942,6 +6032,10 @@ function wireMessages(host) {
   host.querySelectorAll('[data-del]').forEach(b => b.onclick = () => deleteMsg(b.dataset.del));
   host.querySelectorAll('[data-rel]').forEach(b => b.onclick = () => releaseProposal(b.dataset.rel));
   host.querySelectorAll('[data-spike]').forEach(b => b.onclick = () => spikeProposal(b.dataset.spike));
+  host.querySelectorAll('[data-prop-edit]').forEach(b => b.onclick = () => editProposalModal(b.dataset.propEdit));
+  host.querySelectorAll('[data-changes]').forEach(b => b.onclick = () => changesModal(b.dataset.changes));
+  host.querySelectorAll('[data-suggest]').forEach(b => b.onclick = () => suggestModal(b.dataset.suggest));
+  host.querySelectorAll('[data-sg-review]').forEach(b => b.onclick = () => reviewSuggestion(b.dataset.sgReview));
   host.querySelectorAll('[data-pin]').forEach(b => b.onclick = () => togglePin(b.dataset.pin));
   host.querySelectorAll('[data-unpin]').forEach(b => b.onclick = e => { e.stopPropagation(); togglePin(b.dataset.unpin); });
   host.querySelectorAll('[data-sig]').forEach(b => b.onclick = () => sigModal(b.dataset.sig));
@@ -6060,12 +6154,13 @@ function applyMention(ta, host) {
    of a few thousand lines used to serialise the entire masthead once per line
    — tens of seconds with the tab frozen — for a single import. */
 let QUIET = 0;
-function postMessage({ channelId, authorId, text, kind, threadOf, activity, tokens, harness, att, sources }) {
+function postMessage({ channelId, authorId, text, kind, threadOf, activity, tokens, harness, att, sources, chain, signedBy }) {
   const m = { id: uid('m'), channelId, authorId, text, ts: now(), kind: kind || 'msg', reactions: {}, threadOf: threadOf || null, replies: 0 };
   if (att && att.length) m.att = att;
   if (sources && sources.length) { const cs = cleanSources(sources); if (cs.length) m.sources = cs; }
+  if (chain && chain.length) { const cc = cleanChain(chain); if (cc) { m.chain = cc; if (signedBy && signedBy !== authorId) m.signedBy = signedBy; } }
   if (activity) { m.activity = activity; m.tokens = tokens; m.harness = harness; }
-  const author = S.people[authorId];
+  const author = S.people[m.signedBy || authorId];
   m.sig = sign(m, author.sec);                       // immediate, so rendering never waits
   if (hasPriv(author) && SUBTLE) signAsync(m, author);    // upgraded to a real ECDSA byline
   (S.messages[channelId] = S.messages[channelId] || []).push(m);
@@ -6149,6 +6244,185 @@ function editMsg(id) {
     toast('Re-filed and re-signed', true);
   };
   setTimeout(() => mo.q('#edTa').focus(), 40);
+}
+
+/* ---------- suggestions ----------
+   Anyone may offer a change to a line; only its author settles it. A
+   suggestion is a version, signed by whoever offers it and linked to the
+   line's current wording. The author takes it in whole or in part; what they
+   settle on is re-signed under their own byline, which is the countersign,
+   and the line keeps every version. A suggestion for wording the line no
+   longer has does not hold. */
+const baseOf = m => m.chain && m.chain.length ? m.chain[m.chain.length - 1] : { v: 0, by: m.authorId, text: m.text || '', at: isoAt(m.ts), prev: '' };
+function lineById(id) {
+  for (const k of Object.keys(S.messages || {})) { const f = (S.messages[k] || []).find(x => x.id === id); if (f) return f; }
+  return null;
+}
+async function offerSuggestion(m, person, text) {
+  text = String(text || '').trim();
+  if (!m || !text || text === m.text) return null;
+  if (!hasPriv(person) || !SUBTLE) throw new Error((person && person.name || 'This identity') + ' holds no key to sign a suggestion with');
+  const base = baseOf(m);
+  const v = await signVersion(m.channelId, { v: base.v + 1, by: person.id, text, at: isoAt(now()), prev: versionHash(base) }, person);
+  const sg = { id: uid('sg'), lineId: m.id, channelId: m.channelId, v };
+  (S.suggestions = S.suggestions || []).push(sg);
+  logEvent('suggestion.offered', { line: m.id, by: person.name }, person.id);
+  save();
+  peerSend({ op: 'suggest', s: sg });
+  return sg;
+}
+async function checkSuggestion(sg) {
+  const m = sg && okId(sg.lineId) ? lineById(sg.lineId) : null, v = sg && cleanVersion(sg.v);
+  if (!m || !v || m.channelId !== sg.channelId) return false;
+  const base = baseOf(m);
+  if (v.v !== base.v + 1 || v.prev !== versionHash(base)) return false;
+  return verifyBy(S.people[v.by], encU(versionBody(sg.channelId, v)), v.sig, Date.parse(v.at));
+}
+async function receiveSuggestion(x) {
+  if (!x || !okId(x.id) || !okId(x.lineId) || !okId(x.channelId)) return;
+  const v = cleanVersion(x.v); if (!v) return;
+  if ((S.suggestions || []).some(y => y.id === x.id)) return;
+  const sg = { id: x.id, lineId: x.lineId, channelId: x.channelId, v };
+  if (!(await checkSuggestion(sg))) return;
+  (S.suggestions = S.suggestions || []).push(sg);
+  save();
+  if (UI.channelId === sg.channelId) paintMessages();
+}
+async function acceptSuggestion(id, taken) {
+  const sg = (S.suggestions || []).find(x => x.id === id); if (!sg) return;
+  const m = lineById(sg.lineId), author = me();
+  if (!m || m.authorId !== author.id) throw new Error('only the author of a line can settle a suggestion to it');
+  if (!(await checkSuggestion(sg))) throw new Error('the suggestion does not hold: its signature fails, or the line has changed since it was offered');
+  if (!hasPriv(author) || !SUBTLE) throw new Error('settling a suggestion needs your signing key — unlock the masthead');
+  const final = applyHunks(diffWords(m.text, sg.v.text), taken || new Set());
+  if (final === m.text) { rejectSuggestion(id); return m; }
+  const chain = m.chain && m.chain.length ? m.chain.slice() : [await signVersion(m.channelId, baseOf(m), author)];
+  chain.push(cleanVersion(sg.v));
+  if (final !== sg.v.text) chain.push(await signVersion(m.channelId, { v: sg.v.v + 1, by: author.id, text: final, at: isoAt(now()), prev: versionHash(sg.v) }, author));
+  m.edits = (m.edits || []).concat([{ text: m.text, at: now() }]);
+  m.text = final; m.chain = chain; m.editedAt = now(); delete m.signedBy;
+  m.sig = sign(m, author.sec); delete m.alg; VERIFIED.clear();
+  signAsync(m, author);
+  S.suggestions = S.suggestions.filter(x => x.id !== id);
+  logEvent('suggestion.taken', { line: m.id, by: author.name, from: (S.people[sg.v.by] || {}).name });
+  save();
+  if (UI.channelId === m.channelId) paintMessages();
+  return m;
+}
+function rejectSuggestion(id) {
+  S.suggestions = (S.suggestions || []).filter(x => x.id !== id);
+  logEvent('suggestion.declined', { suggestion: id });
+  save();
+  if (UI.view === 'channel') paintMessages();
+}
+function suggestModal(id) {
+  const m = lineById(id); if (!m) return;
+  const mo = modal('Suggest a change', `
+    <div class="tiny mut" style="margin:6px 0 10px">Your suggestion is signed under your key. Nothing changes until ${esc((S.people[m.authorId] || {}).name || 'the author')} takes it, in whole or in part, and signs the result.</div>
+    <textarea class="i" id="sgTa" style="min-height:130px;font-family:var(--serif);font-size:15px">${esc(m.text)}</textarea>
+    <div class="tiny dimt" style="margin:8px 0 4px">What changes</div><div class="chgt" id="sgDiff"></div>`,
+    `<button class="btn" data-close>Cancel</button><button class="btn primary" id="sgGo">Sign and offer</button>`);
+  const ta = mo.q('#sgTa'), diff = mo.q('#sgDiff');
+  const show = () => { diff.innerHTML = ta.value.trim() === m.text ? '<span class="dimt">nothing yet</span>' : diffHTML(m.text, ta.value.trim()); };
+  ta.oninput = show; show();
+  mo.q('#sgGo').onclick = async () => {
+    try { const sg = await offerSuggestion(m, me(), ta.value); mo.close(); if (sg) { toast('Offered, under your signature', true); paintMessages(); } }
+    catch (e) { toast(e.message); }
+  };
+  setTimeout(() => ta.focus(), 40);
+}
+function reviewSuggestion(id) {
+  const sg = (S.suggestions || []).find(x => x.id === id); if (!sg) return;
+  const m = lineById(sg.lineId); if (!m) return;
+  const who = S.people[sg.v.by] || {}, hs = hunksOf(diffWords(m.text, sg.v.text));
+  const mo = modal(esc(who.name || 'Someone') + ' suggests a change', `
+    <div class="tiny mut" style="margin:6px 0 10px">Tick the changes to take. What you settle on is re-signed under your byline, and the line keeps every version, each under its own signature.</div>
+    <div class="chgt" style="margin-bottom:10px">${diffHTML(m.text, sg.v.text)}</div>
+    ${hs.map((h, k) => `<label class="rowbox" style="cursor:pointer"><input type="checkbox" data-hunk="${k}" checked>
+      <span class="sp tiny">${h.del ? `<del>${esc(h.del)}</del>` : ''} ${h.add ? `<ins>${esc(h.add)}</ins>` : ''}</span></label>`).join('')}
+    <div class="tiny" id="sgWhy" style="color:var(--hot);margin-top:8px"></div>`,
+    `<button class="btn" id="sgNo">Decline</button><span style="flex:1"></span><button class="btn primary" id="sgYes">Take the ticked changes</button>`);
+  mo.q('#sgNo').onclick = () => { rejectSuggestion(id); mo.close(); };
+  mo.q('#sgYes').onclick = async () => {
+    const box = mo.q('#sgYes').closest('.scrim') || document;
+    const taken = new Set([...box.querySelectorAll('[data-hunk]')].filter(c => c.checked).map(c => +c.dataset.hunk));
+    try { await acceptSuggestion(id, taken); mo.close(); toast('Settled, and re-signed under your byline', true); }
+    catch (e) { mo.q('#sgWhy').textContent = e.message; }
+  };
+}
+
+/* ---------- what changed, word by word ----------
+   A word-level diff (longest common subsequence over words and the spaces
+   between them). A change is a run of words taken out and put in; a
+   suggestion can be taken change by change. */
+function diffWords(a, b) {
+  const A = String(a).split(/(\s+)/).filter(x => x !== ''), B = String(b).split(/(\s+)/).filter(x => x !== '');
+  if (A.length * B.length > 4e6) return [{ t: '-', s: A.join('') }, { t: '+', s: B.join('') }].filter(o => o.s);
+  const n = A.length, w = B.length, L = Array.from({ length: n + 1 }, () => new Uint32Array(w + 1));
+  for (let i = n - 1; i >= 0; i--) for (let j = w - 1; j >= 0; j--) L[i][j] = A[i] === B[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+  const ops = [];
+  const put = (t, x) => { const last = ops[ops.length - 1]; if (last && last.t === t) last.s += x; else ops.push({ t, s: x }); };
+  let i = 0, j = 0;
+  while (i < n && j < w) {
+    if (A[i] === B[j]) { put('=', A[i]); i++; j++; }
+    else if (L[i + 1][j] >= L[i][j + 1]) put('-', A[i++]);
+    else put('+', B[j++]);
+  }
+  while (i < n) put('-', A[i++]);
+  while (j < w) put('+', B[j++]);
+  /* a lone space both sides happen to share is not a reason to split one
+     change in two: "seven to two" for "seven-to-two council" is one change */
+  const out = [];
+  for (let k = 0; k < ops.length; k++) {
+    const o = ops[k], glue = o.t === '=' && /^\s+$/.test(o.s) && k > 0 && k < ops.length - 1 && ops[k - 1].t !== '=' && ops[k + 1].t !== '=';
+    if (o.t === '=' && !glue) { out.push(o); continue; }
+    let h = out[out.length - 1];
+    if (!h || h.t !== 'h') { h = { t: 'h', del: '', add: '' }; out.push(h); }
+    if (glue) { h.del += o.s; h.add += o.s; } else if (o.t === '-') h.del += o.s; else h.add += o.s;
+  }
+  return out.flatMap(o => o.t !== 'h' ? [o] : [].concat(o.del ? [{ t: '-', s: o.del }] : [], o.add ? [{ t: '+', s: o.add }] : []));
+}
+function hunksOf(ops) {
+  const out = []; let cur = null;
+  for (const o of ops) {
+    if (o.t === '=') { cur = null; continue; }
+    if (!cur) { cur = { del: '', add: '' }; out.push(cur); }
+    if (o.t === '-') cur.del += o.s; else cur.add += o.s;
+  }
+  return out;
+}
+function applyHunks(ops, taken) {
+  let out = '', k = -1, inHunk = false;
+  for (const o of ops) {
+    if (o.t === '=') { inHunk = false; out += o.s; continue; }
+    if (!inHunk) { k++; inHunk = true; }
+    if (taken.has(k) ? o.t === '+' : o.t === '-') out += o.s;
+  }
+  return out;
+}
+const diffHTML = (a, b) => diffWords(a, b).map(o => o.t === '=' ? esc(o.s) : o.t === '-' ? `<del>${esc(o.s)}</del>` : `<ins>${esc(o.s)}</ins>`).join('');
+const editorsOf = x => [...new Set((x.chain || []).filter(v => v.by !== x.authorId).map(v => (S.people[v.by] || {}).name || 'someone'))].join(', ');
+function changesHTML(m) {
+  const c = Array.isArray(m && m.chain) ? m.chain : [];
+  return `<div class="chg">${c.map((v, i) => { const who = S.people[v.by];
+    return `<div class="chgv"><div class="tiny"><b>${esc(who ? who.name : 'a key this masthead does not know')}</b>
+      <span class="dimt">· ${i === 0 ? 'wrote it' : 'changed it'} · ${esc(fmtTime(Date.parse(v.at)))}</span></div>
+      <div class="chgt">${i === 0 ? esc(v.text) : diffHTML(c[i - 1].text, v.text)}</div></div>`; }).join('')}</div>`;
+}
+function changesModal(id) {
+  const x = lineById(id) || (S.proposals || []).find(p => p.id === id); if (!x || !x.chain) return;
+  const mo = modal('What changed', `<div class="tiny" id="chgOk" style="margin:6px 0 10px">Checking every signature…</div>${changesHTML(x)}`, `<button class="btn" data-close>Close</button>`);
+  verifyChain(x.channelId, x.chain, x.authorId, x.text).then(r => {
+    const el = mo.q('#chgOk'); if (!el) return;
+    el.textContent = r.ok ? '✓ every version holds under the signature of whoever wrote it' : '⚠ ' + r.why;
+    el.style.color = r.ok ? 'var(--good)' : 'var(--hot)';
+  });
+}
+function suggestionsHTML(m) {
+  const list = (S.suggestions || []).filter(x => x.lineId === m.id); if (!list.length) return '';
+  const mine = m.authorId === S.meId;
+  return `<div class="sgs">${list.map(x => { const who = S.people[x.v.by];
+    return `<div class="tiny sg">✍ <b>${esc(who ? who.name : 'someone')}</b> suggests a change ${mine ? `<button class="btn sm" data-sg-review="${esc(x.id)}">Review</button>` : '<span class="dimt">· waiting on the author</span>'}</div>`; }).join('')}</div>`;
 }
 
 /* ---------- notifications ---------- */
@@ -6529,6 +6803,10 @@ function holdProposal(agent, c, text, extra) {
   };
   const held = cleanSources((extra || {}).sources);
   if (held.length) p.sources = held;
+  /* the correspondent's own words, signed as it proposes them, so an editor's
+     change can never be passed off as the correspondent's */
+  if (hasPriv(agent) && SUBTLE) DRAFTS.set(p.id, signVersion(c.id, { v: 0, by: agent.id, text, at: isoAt(p.ts), prev: '' }, agent)
+    .then(v0 => { p.v0 = v0; save(); }, () => { /* unsigned draft: it can be released, not edited */ }));
   (S.proposals = S.proposals || []).push(p);
   logEvent('proposal.held', { correspondent: agent.name, channel: c.id }, agent.id);
   save();
@@ -6542,11 +6820,46 @@ function releaseProposal(id) {
   const m = postMessage({
     channelId: p.channelId, authorId: p.authorId, text: p.text, threadOf: p.threadOf,
     activity: p.activity, tokens: p.tokens, harness: p.harness, sources: p.sources,
+    ...(p.chain && p.chain.length > 1 ? { chain: p.chain, signedBy: S.meId } : {}),
   });
   logEvent('proposal.released', { proposal: id, message: m.id, by: me().name });
   save(); render();
   toast('Released — it now carries its byline on the desk', true);
   runWorkflows('message.created', { message: m, actor: S.people[p.authorId], channel: c });
+}
+const DRAFTS = new Map();                 // proposal id → its draft being signed
+const draftSigned = p => DRAFTS.get(p.id) || Promise.resolve();
+async function editProposal(id, text) {
+  if (!can('approve')) return refuse('edit held copy');
+  const p = (S.proposals || []).find(x => x.id === id); if (!p) return;
+  text = String(text || '').trim();
+  if (!text || text === p.text) return p;
+  const editor = me();
+  if (!hasPriv(editor) || !SUBTLE) { toast('Editing held copy needs your signing key — unlock the masthead'); return; }
+  await draftSigned(p);
+  const chain = p.chain ? p.chain.slice() : p.v0 ? [p.v0] : null;
+  if (!chain) { toast('Its draft was never signed, so an edit could not show whose words are whose. Release it or spike it.'); return; }
+  const last = chain[chain.length - 1];
+  chain.push(await signVersion(p.channelId, { v: chain.length, by: editor.id, text, at: isoAt(now()), prev: versionHash(last) }, editor));
+  p.chain = chain; p.text = text;
+  logEvent('proposal.edited', { proposal: id, by: editor.name });
+  save();
+  if (UI.channelId === p.channelId) render();
+  return p;
+}
+function editProposalModal(id) {
+  const p = (S.proposals || []).find(x => x.id === id); if (!p) return;
+  const a = S.people[p.authorId] || {};
+  const mo = modal('Edit before release', `
+    <div class="tiny mut" style="margin:6px 0 10px">Your change is signed under your key. ${esc(a.name || 'The correspondent')}'s own words stay in the line's history under its signature, so a reader can see exactly what you changed.</div>
+    <textarea class="i" id="peTa" style="min-height:140px;font-family:var(--serif);font-size:15px">${esc(p.text)}</textarea>
+    <div class="tiny dimt" style="margin:8px 0 4px">What changes</div><div class="chgt" id="peDiff"></div>`,
+    `<button class="btn" data-close>Cancel</button><button class="btn primary" id="peGo">Sign the edit</button>`);
+  const ta = mo.q('#peTa'), diff = mo.q('#peDiff');
+  const show = () => { diff.innerHTML = ta.value.trim() === p.text ? '<span class="dimt">nothing yet</span>' : diffHTML(p.text, ta.value.trim()); };
+  ta.oninput = show; show();
+  mo.q('#peGo').onclick = async () => { await editProposal(id, ta.value); mo.close(); };
+  setTimeout(() => ta.focus(), 40);
 }
 function spikeProposal(id) {
   if (!can('approve')) return refuse('approve copy');
@@ -10280,6 +10593,169 @@ async function runTests() {
       const sm = norm.messages[desk.id].find(x => x.id === id + '_s');
       ok(sm && !sm.sources, 'and a snapshot is held to the same door');
     } finally { S.messages[desk.id] = msgs(desk.id).filter(x => x.id !== id); }
+  });
+
+  /* ---- the editorial chain ----
+     Every version of a line is signed by whoever wrote it and linked to the one
+     before; the line's own signature covers the chain and names who settled
+     the final wording. A reader can see which words are whose, and check it. */
+  const BEFORE = 'The vote was seven to two on Tuesday.', AFTER = 'The vote was nine to two on Tuesday night.';
+  const withCopyDesk = async body => {
+    const id = 'p_copydesk_' + now(), keys = await genIdentity();
+    S.people[id] = Object.assign({ id, type: 'agent', name: 'Copy desk', handle: 'copydesk' + now(), color: '#5aa877' }, keys);
+    const t0 = now();
+    try { await body(S.people[id]); }
+    finally {
+      delete S.people[id];
+      S.messages[desk.id] = msgs(desk.id).filter(m => !(m.ts >= t0));
+      S.proposals = (S.proposals || []).filter(p => !(p.ts >= t0));
+      S.suggestions = (S.suggestions || []).filter(x => !(Date.parse(x.v.at) >= t0 - 1000));
+      VERIFIED.clear(); save();
+    }
+  };
+
+  await t('Editing', 'a change can be offered word by word, and taken in part', () => {
+    const ops = diffWords(BEFORE, AFTER);
+    eq(hunksOf(ops).length, 2, 'two separate changes:');
+    eq(applyHunks(ops, new Set([0, 1])), AFTER, 'both taken:');
+    eq(applyHunks(ops, new Set()), BEFORE, 'neither taken:');
+    eq(applyHunks(ops, new Set([1])), 'The vote was seven to two on Tuesday night.', 'only the second:');
+    eq(applyHunks(diffWords('same words', 'same words'), new Set()), 'same words', 'nothing to change:');
+    eq(applyHunks(diffWords('', 'all new'), new Set([0])), 'all new', 'from nothing:');
+    const glued = diffWords('after a seven to two vote', 'after a seven-to-two council vote');
+    eq(hunksOf(glued).length, 1, 'a space both sides share does not split one change in two:');
+    eq(applyHunks(glued, new Set([0])), 'after a seven-to-two council vote', 'taken:');
+    eq(applyHunks(glued, new Set()), 'after a seven to two vote', 'left:');
+  });
+  await t('Editing', 'held copy is signed by its correspondent when it is held', async () => {
+    await withCopyDesk(async () => {
+      const p = holdProposal(nib, desk, BEFORE, {});
+      await draftSigned(p);
+      ok(p.v0 && p.v0.by === nib.id && p.v0.text === BEFORE, 'its first version is the correspondent\u2019s own words');
+      eq((await verifyChain(desk.id, [p.v0], nib.id, BEFORE)).ok, true, 'under its own key:');
+    });
+  });
+  await t('Editing', 'an editor\u2019s change to held copy is signed, and the released line carries both versions', async () => {
+    await withCopyDesk(async () => {
+      const p = holdProposal(nib, desk, BEFORE, {});
+      await editProposal(p.id, AFTER);
+      eq((p.chain || []).length, 2, 'two versions, held:');
+      eq(p.text, AFTER, 'the held copy now reads as edited:');
+      const t0 = now(); releaseProposal(p.id);
+      const m = msgs(desk.id).find(x => x.ts >= t0 && x.authorId === nib.id);
+      ok(m, 'released');
+      eq(m.text, AFTER, 'it files the edited wording:');
+      eq(m.chain.map(v => v.by === nib.id ? 'correspondent' : v.by === S.meId ? 'editor' : '?').join(' then '), 'correspondent then editor', 'versions:');
+      eq(m.signedBy, S.meId, 'released under the editor\u2019s signature:');
+      await signedReal(m);
+      eq(await verifyReal(m), true, 'the line holds:');
+      const tamper = async (what, f, undo) => { f(); VERIFIED.clear(); eq(await verifyReal(m), false, what + ':'); undo(); };
+      const c0 = JSON.parse(JSON.stringify(m.chain));
+      await tamper('the correspondent\u2019s words changed', () => { m.chain[0].text = 'The vote was unanimous.'; }, () => { m.chain = JSON.parse(JSON.stringify(c0)); });
+      await tamper('the editor\u2019s words changed with the line', () => { m.chain[1].text = m.text = 'The vote was nine to nothing.'; }, () => { m.chain = JSON.parse(JSON.stringify(c0)); m.text = AFTER; });
+      await tamper('the versions swapped', () => { m.chain = [c0[1], c0[0]]; }, () => { m.chain = JSON.parse(JSON.stringify(c0)); });
+      await tamper('the first version dropped', () => { m.chain = [c0[1]]; }, () => { m.chain = JSON.parse(JSON.stringify(c0)); });
+      await tamper('the editor erased', () => { m.chain = [c0[0]]; m.text = BEFORE; }, () => { m.chain = JSON.parse(JSON.stringify(c0)); m.text = AFTER; });
+      await tamper('the release credited to the correspondent', () => { delete m.signedBy; }, () => { m.signedBy = S.meId; });
+      /* a whole other history, every version of it genuine, ending in the same
+         words: it would say the correspondent first wrote something it did not */
+      const q = holdProposal(nib, desk, 'A different draft altogether.', {});
+      await editProposal(q.id, AFTER);
+      await tamper('another genuine history swapped in', () => { m.chain = JSON.parse(JSON.stringify(q.chain)); }, () => { m.chain = JSON.parse(JSON.stringify(c0)); });
+      eq((await verifyChain(desk.id, [q.chain[0], c0[1]], nib.id, AFTER)).ok, false, 'a version that does not follow the one before it:');
+      const mine = await signVersion(desk.id, { v: 0, by: S.meId, text: AFTER, at: isoAt(now()), prev: '' }, meP);
+      eq((await verifyChain(desk.id, [mine], nib.id, AFTER)).ok, false, 'a history that does not start with its author:');
+      const plain = { id: 'm_settled_' + now(), channelId: desk.id, authorId: nib.id, text: AFTER, ts: now(), kind: 'msg', reactions: {}, signedBy: S.meId };
+      plain.sig = await signReal(plain, meP); plain.alg = 'ecdsa-p256';
+      eq(await verifyReal(plain), false, 'and someone else signing its words with no history to show:');
+      /* the attack the version signatures exist for: an editor who signs the
+         line can link and sign everything except the correspondent's own words */
+      const putWords = { v: 0, by: nib.id, text: 'Words the correspondent never wrote.', at: isoAt(now()), prev: '' };
+      const fake0 = Object.assign({}, putWords, { sig: (await signVersion(desk.id, putWords, meP)).sig });
+      const fake1 = await signVersion(desk.id, { v: 1, by: S.meId, text: AFTER, at: isoAt(now()), prev: versionHash(fake0) }, meP);
+      const framed = { id: 'm_framed_' + now(), channelId: desk.id, authorId: nib.id, text: AFTER, ts: now(), kind: 'msg', reactions: {}, chain: [fake0, fake1], signedBy: S.meId };
+      framed.sig = await signReal(framed, meP); framed.alg = 'ecdsa-p256';
+      eq(await verifyReal(framed), false, 'an editor cannot put words in the correspondent\u2019s mouth, even signing everything else:');
+      VERIFIED.clear();
+      eq(await verifyReal(m), true, 'and restored, it holds again:');
+    });
+  });
+  await t('Editing', 'held copy released unedited files exactly as before', async () => {
+    await withCopyDesk(async () => {
+      const p = holdProposal(nib, desk, BEFORE, {});
+      await draftSigned(p);
+      const t0 = now(); releaseProposal(p.id);
+      const m = msgs(desk.id).find(x => x.ts >= t0 && x.authorId === nib.id);
+      ok(m && !m.chain && !m.signedBy, 'no history to carry, and its own byline');
+      await signedReal(m);
+      eq(await verifyReal(m), true, 'signed by the correspondent:');
+    });
+  });
+  await t('Editing', 'a suggestion is signed by whoever offers it, and the author takes it in part', async () => {
+    await withCopyDesk(async ed => {
+      const m = postMessage({ channelId: desk.id, authorId: S.meId, text: BEFORE });
+      await signedReal(m);
+      const sg = await offerSuggestion(m, ed, AFTER);
+      ok(sg && sg.v.by === ed.id && sg.v.text === AFTER, 'offered under the copy desk\u2019s own key');
+      eq(await checkSuggestion(sg), true, 'and it holds:');
+      eq(m.text, BEFORE, 'nothing changes until the author says so:');
+      await acceptSuggestion(sg.id, new Set([1]));
+      eq(m.text, 'The vote was seven to two on Tuesday night.', 'the author took only the second change:');
+      eq(m.chain.map(v => v.by === S.meId ? 'author' : 'desk').join(), 'author,desk,author', 'the author wrote it, the desk suggested, the author settled it:');
+      ok(!m.signedBy || m.signedBy === S.meId, 'and the author\u2019s own signature is the countersign');
+      await signedReal(m);
+      eq(await verifyReal(m), true, 'the line holds:');
+      ok(!(S.suggestions || []).some(x => x.id === sg.id), 'and the suggestion is settled');
+      const m2 = postMessage({ channelId: desk.id, authorId: S.meId, text: BEFORE });
+      await signedReal(m2);
+      const sg2 = await offerSuggestion(m2, ed, AFTER);
+      await acceptSuggestion(sg2.id, new Set([0, 1]));
+      eq(m2.chain.length, 2, 'taken whole, the suggestion is the last version:');
+      eq(m2.text, AFTER, 'reading as suggested:');
+      await signedReal(m2);
+      eq(await verifyReal(m2), true, 'and holds:');
+    });
+  });
+  await t('Editing', 'a suggestion that does not hold, or no longer fits, is refused', async () => {
+    await withCopyDesk(async ed => {
+      const m = postMessage({ channelId: desk.id, authorId: S.meId, text: BEFORE });
+      await signedReal(m);
+      const forged = await offerSuggestion(m, ed, AFTER);
+      forged.v.text = 'The vote was nine to nothing.';
+      eq(await checkSuggestion(forged), false, 'its words changed after signing:');
+      let threw = ''; try { await acceptSuggestion(forged.id, new Set([0])); } catch (e) { threw = e.message; }
+      ok(/does not hold/.test(threw) && m.text === BEFORE, 'and it cannot be taken: ' + threw);
+      const stale = await offerSuggestion(m, ed, AFTER);
+      m.text = 'The vote was seven to two.'; m.chain = undefined;
+      eq(await checkSuggestion(stale), false, 'a suggestion for words the line no longer has:');
+      m.text = BEFORE;
+      const keep = (S.suggestions || []).length;
+      const real = await offerSuggestion(m, ed, AFTER);
+      S.suggestions = (S.suggestions || []).filter(x => x.id !== real.id);
+      await applyPeerOp({ op: 'suggest', s: Object.assign(JSON.parse(JSON.stringify(real)), { id: 'sg_forged_' + now() }, { v: Object.assign({}, real.v, { text: 'Forged words.' }) }) });
+      ok(!(S.suggestions || []).some(x => x.v.text === 'Forged words.'), 'a forged one from a peer is not kept');
+      await applyPeerOp({ op: 'suggest', s: JSON.parse(JSON.stringify(real)) });
+      ok((S.suggestions || []).some(x => x.id === real.id), 'a real one is');
+      await applyPeerOp({ op: 'suggest', s: { id: '<b>', lineId: m.id, channelId: desk.id, v: real.v } });
+      ok(!(S.suggestions || []).some(x => x.id === '<b>'), 'and one whose identifier is not an identifier never gets that far');
+      ok((S.suggestions || []).length <= keep + 2, 'nothing else crept in');
+      const theirs = postMessage({ channelId: desk.id, authorId: nib.id, text: BEFORE });
+      await signedReal(theirs);
+      const toThem = await offerSuggestion(theirs, ed, AFTER);
+      threw = ''; try { await acceptSuggestion(toThem.id, new Set([0, 1])); } catch (e) { threw = e.message; }
+      ok(/only the author/.test(threw) && theirs.text === BEFORE, 'and only a line\u2019s author can settle a suggestion to it: ' + threw);
+    });
+  });
+  await t('Editing', 'every version is shown as words, with what changed', () => {
+    const m = { id: 'm_chain_show', channelId: desk.id, authorId: nib.id, text: '<b>bold</b> claim', ts: now(),
+      chain: [{ v: 0, by: nib.id, text: '<img src=x onerror="window.__chainPwned=1">', at: '2026-10-01T00:00:00.000Z', prev: '', sig: 'a'.repeat(128) },
+        { v: 1, by: S.meId, text: '<b>bold</b> claim', at: '2026-10-01T00:01:00.000Z', prev: 'b'.repeat(64), sig: 'c'.repeat(128) }] };
+    const div = document.createElement('div'); div.innerHTML = changesHTML(m);
+    ok(!div.querySelector('img,[onerror]') && !window.__chainPwned && div.textContent.indexOf('<b>bold</b>') >= 0, 'no markup from any version reaches the page: it is there as words');
+    ok(div.querySelector('del') && div.querySelector('ins'), 'what was taken out and put in is marked');
+    ok(div.textContent.indexOf(nib.name) >= 0 && div.textContent.indexOf(meP.name) >= 0, 'with whose each version is');
+    const row = document.createElement('div'); row.innerHTML = msgHTML(Object.assign({ reactions: {}, kind: 'msg', sig: 'x' }, m), true);
+    ok(row.querySelector('[data-changes]'), 'and a line that continues a run still says it was edited, and by whom');
   });
   await t('Local helper', 'the helper\u2019s token is kept under the same lock as the keys', async () => {
     const hc = HELPER_CFG(), was = hc.token, pass = 'helper lock ' + now();
