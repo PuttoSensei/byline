@@ -21,7 +21,7 @@ let stdin = '';
 process.stdin.on('data', d => { stdin += d; });
 process.stdin.on('end', () => {
   if (dump) fs.writeFileSync(dump, JSON.stringify({ argv, stdin, cwd: process.cwd(), cwdEntries: fs.readdirSync(process.cwd()), pid: process.pid,
-    sawToken: 'BYLINE_HELPER_TOKEN' in process.env }));
+    sawToken: 'BYLINE_HELPER_TOKEN' in process.env, sawSearchKey: 'BYLINE_HELPER_BRAVE_KEY' in process.env }));
 
   if (mode === 'stall') {                     // real: Claude Code with an expired sign-in
     say({ type: 'system', subtype: 'init', tools: [], mcp_servers: [], model: 'claude-sonnet-4-6' });

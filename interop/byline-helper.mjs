@@ -43,6 +43,10 @@
                                      can be steered by what is written on it, and
                                      one that can fetch can be steered into
                                      carrying what it read somewhere else.
+     BYLINE_HELPER_BRAVE_KEY=key     lets a citing correspondent search (Brave Search API).
+                                     Without it, it can still read pages it is given.
+     BYLINE_HELPER_FETCH_PRIVATE=1   tests only: lets /sources read this machine's own
+                                     addresses, which it otherwise refuses
      BYLINE_HELPER_BIN_CLAUDE=path   where an agent lives, if not on PATH
      BYLINE_HELPER_BIN_CODEX=path
      BYLINE_HELPER_FIRST_MS, _RUN_MS, _OUT_MAX, _RATE, _STORE   limits; see below */
@@ -54,6 +58,7 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { readSources, braveSearch, recheck, LIMITS as SRC } from './sources.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PORT = parseInt(process.argv[2] || '8127', 10);
@@ -65,6 +70,8 @@ const RATE = num('BYLINE_HELPER_RATE', 30);             // requests a minute
 const BODY_MAX = 256 * 1024;
 const STORE = process.env.BYLINE_HELPER_STORE || path.join(HERE, '_helper.json');
 const RESEARCH = (process.env.BYLINE_HELPER_TOOLS || '') === 'research';
+const BRAVE_KEY = process.env.BYLINE_HELPER_BRAVE_KEY || '';
+const FETCH_PRIVATE = process.env.BYLINE_HELPER_FETCH_PRIVATE === '1';
 
 /* ---------- the token ---------- */
 let store = {};
@@ -235,7 +242,7 @@ const server = http.createServer(async (req, res) => {
         out[id] = bin ? { installed: true, name: h.name, version: versionOf(bin), tools: h.tools, busy: running.has(id) }
                       : { installed: false, name: h.name };
       }
-      return send(req, res, 200, { helper: 'byline-helper', harnesses: out, research: RESEARCH });
+      return send(req, res, 200, { helper: 'byline-helper', harnesses: out, research: RESEARCH, sources: { search: !!BRAVE_KEY } });
     }
 
     if (req.method === 'POST' && url.pathname === '/run') {
@@ -252,7 +259,7 @@ const server = http.createServer(async (req, res) => {
       if (running.has(id)) return send(req, res, 429, { error: h.name + ' is already working on something — one run at a time' });
 
       const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'byline-run-'));
-      const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(CLAUDECODE$|CLAUDE_CODE_|CLAUDE_PID$|BYLINE_HELPER_TOKEN$)/.test(k)));
+      const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(CLAUDECODE$|CLAUDE_CODE_|CLAUDE_PID$|BYLINE_HELPER_TOKEN$|BYLINE_HELPER_BRAVE_KEY$)/.test(k)));
       const started = Date.now();
       const child = spawn(bin.cmd, bin.pre.concat(h.args(model)), { cwd, env, shell: false, windowsHide: true,
         detached: process.platform !== 'win32', stdio: ['pipe', 'pipe', 'pipe'] });
@@ -298,7 +305,33 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    if (req.method === 'GET' && url.pathname === '/') return send(req, res, 200, { helper: 'byline-helper', see: 'GET /harnesses, POST /run' });
+    /* Sources for a correspondent that cites: the pages it is given, or the
+       results of a search, each read once and returned with a receipt. The
+       page decides what the model is shown; this only fetches, and only from
+       the public web (interop/sources.mjs says how). */
+    if (req.method === 'POST' && url.pathname === '/sources') {
+      let job; try { job = JSON.parse(await readBody(req)); } catch (e) { return send(req, res, 400, { error: 'not JSON' }); }
+      const given = Array.isArray(job && job.urls) ? job.urls.filter(u => typeof u === 'string' && /^https?:\/\//i.test(u) && u.length <= 2048) : [];
+      const query = typeof (job && job.query) === 'string' ? job.query.trim().slice(0, 400) : '';
+      let urls = given.slice(0, SRC.pages), searched = false;
+      if (!urls.length) {
+        if (!query) return send(req, res, 400, { error: 'give it pages to read, or something to search for' });
+        if (!BRAVE_KEY) return send(req, res, 424, { error: 'this helper cannot search: start it with BYLINE_HELPER_BRAVE_KEY, or name the pages to read' });
+        try { urls = await braveSearch(query, BRAVE_KEY); searched = true; } catch (e) { return send(req, res, 502, { error: e.message }); }
+        if (!urls.length) return send(req, res, 200, { sources: [], dropped: [], searched });
+      }
+      const out = await readSources(urls);
+      log('sources', out.sources.length + ' read,', out.dropped.length + ' dropped', searched ? '(searched)' : '(given)');
+      return send(req, res, 200, Object.assign(out, { searched }));
+    }
+    if (req.method === 'POST' && url.pathname === '/recheck') {
+      let job; try { job = JSON.parse(await readBody(req)); } catch (e) { return send(req, res, 400, { error: 'not JSON' }); }
+      if (!job || typeof job.url !== 'string' || !/^https?:\/\//i.test(job.url) || !/^[0-9a-f]{64}$/.test(String(job.sha256 || '')))
+        return send(req, res, 400, { error: 'a recheck needs the url and sha256 of the source' });
+      return send(req, res, 200, await recheck({ url: job.url, sha256: job.sha256, excerpt: typeof job.excerpt === 'string' ? job.excerpt.slice(0, 4000) : '' }));
+    }
+
+    if (req.method === 'GET' && url.pathname === '/') return send(req, res, 200, { helper: 'byline-helper', see: 'GET /harnesses, POST /run, POST /sources, POST /recheck' });
     return send(req, res, 404, { error: 'no such route' });
   } catch (e) {
     return send(req, res, 500, { error: e.message });
@@ -311,5 +344,7 @@ server.listen(PORT, '127.0.0.1', () => {
   console.log('  answers pages from: ' + NAMED.join(', ') + (LOOPBACK_PAGES ? ', and any http://127.0.0.1 or http://localhost port' : ''));
   for (const [id, h] of Object.entries(HARNESSES)) { const b = h.bin(); console.log('  ' + id.padEnd(12) + (b ? b.shown + '   tools: ' + h.tools : 'not installed')); }
   if (RESEARCH) console.log('  RESEARCH IS ON: Claude Code may search and fetch the web. Desk text can steer it.');
+  console.log('  sources: reads public web pages for citing correspondents; search ' + (BRAVE_KEY ? 'on (Brave)' : 'off (no BYLINE_HELPER_BRAVE_KEY)'));
+  if (FETCH_PRIVATE) console.log('  FETCH_PRIVATE IS ON: /sources may read this machine and its network. Tests only.');
 });
 for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { for (const c of running.values()) killTree(c); process.exit(0); });

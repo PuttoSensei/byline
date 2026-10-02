@@ -49,7 +49,7 @@ function call(method, p, { body, origin = GOOD, token = 'sesame', host, port = P
 const run = (job, opts) => call('POST', '/run', Object.assign({ body: job }, opts || {}));
 const last = r => r.lines[r.lines.length - 1] || {};
 
-const { child: helper } = await start(PORT);
+const { child: helper } = await start(PORT, { BYLINE_HELPER_BRAVE_KEY: 'test-search-key' });
 try {
   console.log('where it listens');
   const lan = Object.values(os.networkInterfaces()).flat().find(i => i && i.family === 'IPv4' && !i.internal);
@@ -109,6 +109,7 @@ try {
   await sleep(700);
   ok(!fs.existsSync(d.cwd), 'which is gone afterwards');
   ok(d.sawToken === false, 'and the helper\'s own token is not in the agent\'s environment');
+  ok(d.sawSearchKey === false, 'nor its search key');
   r = await run({ harness: 'codex', prompt: 'hello', model: 'ok' }, {});
   const cd = JSON.parse(fs.readFileSync(DUMP, 'utf8'));
   ok(last(r).t === 'done' && r.lines.some(l => l.t === 'tool' && l.name === 'shell') && r.lines.some(l => l.t === 'text'), 'Codex\'s format is read too: a shell command, then its answer');
@@ -135,6 +136,38 @@ try {
   ok(!alive(p2.parent) && !alive(p2.child), 'and a page that goes away takes its agent with it');
   r = await call('GET', '/harnesses');
   ok(r.json.harnesses['claude-code'].busy === false, 'after which the harness is free again');
+
+  console.log('sources for a correspondent that cites');
+  const fixture = http.createServer((q, s) => {
+    if (q.url === '/page') { s.writeHead(200, { 'content-type': 'text/html' }); return s.end('<html><head><title>Fixture</title></head><body><article><p>' + 'The council voted seven to two on Tuesday to keep the library open on Sundays through the winter. '.repeat(4) + '</p></article></body></html>'); }
+    s.writeHead(404); s.end();
+  });
+  await new Promise(r2 => fixture.listen(0, '127.0.0.1', r2));
+  const page = 'http://127.0.0.1:' + fixture.address().port + '/page';
+  r = await call('GET', '/harnesses');
+  ok(r.json.sources && r.json.sources.search === true, 'it says whether it can search (it was given a key)');
+  r = await call('POST', '/sources', { body: { urls: [page] }, token: null });
+  ok(r.status === 401, 'reading sources needs the token like everything else (' + r.status + ')');
+  r = await call('POST', '/sources', { body: { urls: [page] }, origin: 'https://evil.example' });
+  ok(r.status === 403, 'and a page it was not told to answer is refused (' + r.status + ')');
+  r = await call('POST', '/sources', { body: { urls: [page, 'http://169.254.169.254/latest/meta-data/', 'file:///etc/passwd'] } });
+  ok(r.status === 200 && r.json.sources.length === 0, 'a page cannot use it to read this machine: loopback and metadata addresses give no source');
+  ok(r.json.dropped.length === 2 && r.json.dropped.every(x => /private or reserved/.test(x.why)), 'each is dropped with the reason, and file: never even gets that far: ' + r.json.dropped.map(x => x.why).join('; '));
+  r = await call('POST', '/sources', { body: {} });
+  ok(r.status === 400, 'nothing to read and nothing to search is a 400 (' + r.status + ')');
+  r = await call('POST', '/recheck', { body: { url: 'javascript:alert(1)', sha256: '0'.repeat(64) } });
+  ok(r.status === 400, 'a recheck of something that is not a web address is refused (' + r.status + ')');
+  const { child: reader } = await start(PORT + 2, { BYLINE_HELPER_FETCH_PRIVATE: '1' });
+  try {
+    r = await call('POST', '/sources', { port: PORT + 2, host: '127.0.0.1:' + (PORT + 2), body: { urls: [page] } });
+    const src = (r.json && r.json.sources || [])[0] || {};
+    ok(r.status === 200 && src.n === 1 && src.title === 'Fixture' && /seven to two/.test(src.excerpt) && /^[0-9a-f]{64}$/.test(src.sha256),
+      'with private fetching on (tests only), a page comes back as a numbered source with its receipt');
+    r = await call('POST', '/recheck', { port: PORT + 2, host: '127.0.0.1:' + (PORT + 2), body: { url: page, sha256: src.sha256, excerpt: src.excerpt } });
+    ok(r.status === 200 && r.json.status === 'unchanged', 'and a recheck of the same page says it is unchanged (' + (r.json && r.json.status) + ')');
+    r = await call('POST', '/sources', { port: PORT + 2, host: '127.0.0.1:' + (PORT + 2), body: { query: 'library hours' } });
+    ok(r.status === 424 && /BRAVE_KEY/.test(r.json.error), 'without a search key it says it cannot search, and how to let it (' + r.status + ')');
+  } finally { reader.stdout.destroy(); reader.kill(); await new Promise(r2 => reader.once('exit', r2)); fixture.close(); }
 
   console.log('with nothing configured');
   const { child: bare, banner } = await start(PORT + 1, { BYLINE_HELPER_TOKEN: '' });

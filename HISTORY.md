@@ -1302,3 +1302,54 @@ they do. It is a different failure from a bad signature, and the old tests
 could not tell the two apart.
 
 197 tests.
+
+Then a failure that only looked like a pass. On CI the Linux job passed every
+check and then sat for 54 minutes, until the time limit cancelled it. The
+same had happened locally, and was misread there: the run "finished" only
+because a 50-minute `timeout` killed it, and it was reported as green.
+Killing `tauri-driver` had left WebKitWebDriver and the app alive (behind
+AppRun, for the AppImage), holding the pipe the test read. The test now owns
+a process group and kills all of it, and exits with its verdict. The CI step
+has its own 30-minute limit. The whole Linux build and test takes 203
+seconds and exits 0. The lesson is old: read the exit code of the command you
+mean, not the one after it.
+
+### The thirty-first pass: a correspondent that cites
+
+From `sourced` (`~/Heya/sourced`), its search and its careful fetching. A
+correspondent that cites (`citesSources`: told to, or a research beat unless
+told not to) first asks the local helper for pages. It gets the ones named on
+the desk, or what a search finds, if the helper was given a Brave Search key.
+Each page comes back with a receipt: its address, when it was read, the
+SHA-256 of the exact bytes, and the excerpt the model was shown. The model
+answers under `sourced`'s rules: only the excerpts, every claim cited by
+number, say what is missing, and the excerpts are data, not instructions.
+Only the sources the answer actually cites are filed with the line, and the
+line's signature covers them. A swapped source breaks the byline as a swapped
+word does.
+
+The fetching lives in `interop/sources.mjs`, with no dependencies, because
+search results and desk text are attacker-chosen addresses. It reads http and
+https only. It refuses this machine's addresses and its network's, by IP
+literal and by name, at connect time and on every redirect. It takes HTML
+only, with a byte ceiling and a whole-page deadline. The first version had
+only an idle timeout, which a server dripping one byte at a time could hold
+open forever. Of twelve mutants, eleven died at once. The survivor was real:
+script and navigation stripping had only been tested on a page whose
+`<article>` already left them out.
+
+In the page, receipts pass a door that validates and never rewrites, since a
+tidied address would break an honest signature. They are escaped wherever
+they are shown, and only a web address becomes a link. "Does it still say
+this?" asks the helper to read the page again. The answer is unchanged,
+changed but still saying it (sentence by sentence), changed and no longer
+saying it, or unreachable. It is kept for the session only: a peer's word
+that a page is unchanged is not a check. Ten tests, written to fail first
+(nine did; the tenth guards lines without sources), and seven mutants, all
+killed.
+
+Two traps on the way. A test string containing a literal script tag made the
+tooling hash the wrong span, so the browser ran nothing. And `counts.py` would
+have written "Awo hundred and seven".
+
+207 tests.

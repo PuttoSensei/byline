@@ -110,7 +110,9 @@ def main():
     drift += patch(os.path.join(ROOT, 'README.md'), [(r'\d+ of them, in-browser', f'{t} of them, in-browser'),
                                                     (r'Run its \d+ tests in your own browser', f'Run its {t} tests in your own browser')], fix)
     drift += patch(os.path.join(ROOT, 'byline-landing.html'),
-                   [(r'A hundred and [a-z-]+ smoke tests', 'A' + word[1:] + ' smoke tests')], fix)
+                   # "A hundred and ninety-seven", then "Two hundred and seven": the
+                   # first word is whatever the number's is, capitalised
+                   [(r'[A-Z][a-z]* hundred(?: and [a-z-]+)? smoke tests', word[0].upper() + word[1:] + ' smoke tests')], fix)
     if ext:
         ew = spell(ext)
         drift += patch(os.path.join(ROOT, 'byline-landing.html'),
