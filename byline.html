@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-IrRBea3uSaXIxwr3lxbXuQKMXaeGqj8ClBbrrA3drGg='; style-src 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: data:; connect-src *; font-src 'self' data:; worker-src 'self' blob:; manifest-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-DUYXBnnczCABcFqwuLO/6WTDk477r3OEya0llTHOYno='; style-src 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: data:; connect-src *; font-src 'self' data:; worker-src 'self' blob:; manifest-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#0d0d0e">
 <link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22Byline%22%2C%22short_name%22%3A%22Byline%22%2C%22description%22%3A%22A%20signed%20newsroom%20where%20AI%20correspondents%20work%20alongside%20people.%22%2C%22start_url%22%3A%22.%22%2C%22scope%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%230d0d0e%22%2C%22theme_color%22%3A%22%230d0d0e%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%2C%253Csvg%2520xmlns%253D%2522http%253A%252F%252Fwww.w3.org%252F2000%252Fsvg%2522%2520viewBox%253D%25220%25200%2520512%2520512%2522%253E%253Crect%2520width%253D%2522512%2522%2520height%253D%2522512%2522%2520rx%253D%252296%2522%2520fill%253D%2522%25230d0d0e%2522%252F%253E%253Ctext%2520x%253D%2522256%2522%2520y%253D%2522352%2522%2520text-anchor%253D%2522middle%2522%2520font-family%253D%2522Georgia%252Cserif%2522%2520font-size%253D%2522300%2522%2520font-weight%253D%2522700%2522%2520fill%253D%2522%2523e8412f%2522%253EB%253C%252Ftext%253E%253C%252Fsvg%253E%22%2C%22sizes%22%3A%22any%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%2C%22purpose%22%3A%22any%22%7D%5D%7D">
@@ -4207,6 +4207,9 @@ function hydrate(st, clearBusy) {
   });
   st.proposals.forEach(dropBadSources);
   st.proposals.forEach(dropBadChain);
+  /* the work queue is this machine's own; a malformed task is dropped */
+  st.tasks = Array.isArray(st.tasks) ? st.tasks.filter(x => x && typeof x === 'object' && okId(x.id) && okId(x.agentId)
+    && okId(x.channelId) && TASK_STATES.indexOf(x.state) >= 0).slice(-TASK_KEEP) : [];
   /* suggestions travel live and are kept here only; each one is checked again
      before it can be taken */
   st.suggestions = Array.isArray(st.suggestions) ? st.suggestions
@@ -5580,11 +5583,13 @@ function renderTop() {
     ${isDM ? '' : `<div class="facepile" data-act="members" title="Members">
       ${mem.slice(0, 5).map(p => avatar(p)).join('')}${mem.length > 5 ? `<span class="pill" style="margin-left:5px">+${mem.length - 5}</span>` : ''}
     </div>
-    <button class="iconbtn" data-act="addpeople" title="Add people & agents">＋</button>`}`;
+    <button class="iconbtn" data-act="addpeople" title="Add people & agents">＋</button>`}
+    <button class="${activeTasks() ? 'btn sm' : 'iconbtn'}" data-act="tasks" title="Work queue: what correspondents are doing and have done">⚙${activeTasks() ? ' ' + activeTasks() : ''}</button>`;
   t.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { UI.tab = b.dataset.tab; render(); });
   t.querySelector('[data-act="menu"]').onclick = () => { UI.sidebarOpen = !UI.sidebarOpen; renderSidebar(); };
   const mb = t.querySelector('[data-act="members"]'); if (mb) mb.onclick = () => { UI.rpanel = UI.rpanel === 'members' ? null : 'members'; render(); };
   const ab = t.querySelector('[data-act="addpeople"]'); if (ab) ab.onclick = addPeopleModal;
+  const tb = t.querySelector('[data-act="tasks"]'); if (tb) tb.onclick = () => { UI.rpanel = UI.rpanel === 'tasks' ? null : 'tasks'; render(); };
   const hb = t.querySelector('[data-act="huddle"]');
   if (hb) hb.onclick = () => {
     if (UI.huddle && UI.rpanel !== 'huddle') { UI.rpanel = 'huddle'; return render(); }
@@ -5825,6 +5830,7 @@ function msgHTML(m, cont) {
         <span class="who">${esc(a ? a.name : 'unknown')}</span>
         ${isAgent ? `<span class="tag">correspondent</span>` : ''}
         ${m.kind === 'receipt' ? '<span class="tag wf">wire</span>' : ''}
+        ${m.scripted ? '<span class="tag" title="No model was connected: a written reply, not generated">scripted</span>' : ''}
         <span class="when">${fmtTime(m.ts)}</span>
         ${m.chain && m.chain.length > 1 ? `<button class="when chgbtn" data-changes="${esc(m.id)}" title="See every version, each under its own signature">edited by ${esc(editorsOf(m))}</button>`
           : m.editedAt ? `<span class="when" title="Re-signed ${fmtTime(m.editedAt)}; ${m.edits.length} earlier version${m.edits.length === 1 ? '' : 's'}" style="cursor:help">edited</span>` : ''}
@@ -6158,11 +6164,13 @@ function applyMention(ta, host) {
    of a few thousand lines used to serialise the entire masthead once per line
    — tens of seconds with the tab frozen — for a single import. */
 let QUIET = 0;
-function postMessage({ channelId, authorId, text, kind, threadOf, activity, tokens, harness, att, sources, chain }) {
+function postMessage({ channelId, authorId, text, kind, threadOf, activity, tokens, harness, att, sources, chain, taskId }) {
   const m = { id: uid('m'), channelId, authorId, text, ts: now(), kind: kind || 'msg', reactions: {}, threadOf: threadOf || null, replies: 0 };
   if (att && att.length) m.att = att;
   if (sources && sources.length) { const cs = cleanSources(sources); if (cs.length) m.sources = cs; }
   if (chain && chain.length) { const cc = cleanChain(chain); if (cc) m.chain = cc; }
+  const tk = taskId || (kind !== 'system' ? RUNNING_TASK.get(authorId) : null);
+  if (tk) m.taskId = tk;            // so a task left running when Byline closed is found finished, not done again
   if (activity) { m.activity = activity; m.tokens = tokens; m.harness = harness; }
   const author = S.people[authorId];
   m.sig = sign(m, author.sec);                       // immediate, so rendering never waits
@@ -6577,9 +6585,12 @@ async function ollamaChat(body, opts) {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body), signal: ctrl.signal
     });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
+    /* Ollama says why it refused ("model requires more system memory …");
+       a bare status code would leave the desk guessing */
+    if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error ? String(j.error).slice(0, 200) : 'HTTP ' + r.status); }
     if (!body.stream) {
       const j = await r.json();
+      if (j.error) throw new Error(String(j.error).slice(0, 200));
       return { text: ((j.message && j.message.content) || '').trim(), tokens: (j.eval_count || 0) + (j.prompt_eval_count || 0) };
     }
     if (!r.body) throw new Error('no response body');
@@ -6599,6 +6610,7 @@ async function ollamaChat(body, opts) {
       for (const ln of lines) {
         if (!ln.trim()) continue;
         let j; try { j = JSON.parse(ln); } catch (e) { continue; }
+        if (j.error) throw new Error(String(j.error).slice(0, 200));      // a refusal inside the stream
         if (j.message && j.message.content) { text += j.message.content; if (opts.onChunk) opts.onChunk(text); }
         if (j.eval_count) tokens = j.eval_count + (j.prompt_eval_count || 0);
       }
@@ -6829,6 +6841,9 @@ function holdProposal(agent, c, text, extra) {
   };
   const held = cleanSources((extra || {}).sources);
   if (held.length) p.sources = held;
+  const tk = RUNNING_TASK.get(agent.id); if (tk) p.taskId = tk;
+  if ((extra || {}).live) p.live = true;
+  if ((extra || {}).scripted) p.scripted = true;
   /* the correspondent's own words, signed as it proposes them, so an editor's
      change can never be passed off as the correspondent's */
   if (hasPriv(agent) && SUBTLE) DRAFTS.set(p.id, signVersion(c.id, { v: 0, by: agent.id, text, at: isoAt(p.ts), prev: '' }, agent)
@@ -6845,7 +6860,7 @@ function releaseProposal(id) {
   const c = chan(p.channelId); if (!c) return;
   const m = postMessage({
     channelId: p.channelId, authorId: p.authorId, text: p.text, threadOf: p.threadOf,
-    activity: p.activity, tokens: p.tokens, harness: p.harness, sources: p.sources,
+    activity: p.activity, tokens: p.tokens, harness: p.harness, sources: p.sources, taskId: p.taskId,
     ...(p.chain && p.chain.length > 1 ? { chain: p.chain } : {}),   // signed by the correspondent's own key, held here
   });
   logEvent('proposal.released', { proposal: id, message: m.id, by: me().name });
@@ -6917,7 +6932,199 @@ function wakeAgents(m, c) {
       .filter(Boolean).filter(a => c.members.includes(a.id));
     targets = targets.filter((a, i) => targets.indexOf(a) === i);
   }
-  targets.forEach((a, i) => setTimeout(() => runAgent(a, m, c), 350 + i * 800));
+  /* "reviewed by @x": x reviews what the others write, and is not asked to write it */
+  const rv = /\breview(?:ed)?\s+by\s+@([a-z0-9_-]+)/i.exec(m.text || '');
+  const reviewer = rv && c.kind !== 'dm' ? agents().find(a => a.handle === rv[1].toLowerCase() && c.members.includes(a.id)) : null;
+  if (reviewer) targets = targets.filter(a => a.id !== reviewer.id);
+  targets.forEach(a => enqueueTask({ agentId: a.id, channelId: c.id, msgId: m.id, reviewer: reviewer ? reviewer.id : null }));
+}
+
+/* ==========================================================================
+   THE COORDINATOR
+   Every request to a correspondent is a task: queued, running, done, failed
+   or cancelled. The queue is kept with the masthead in this browser and never
+   sent to a peer. It runs while Byline is open, and not otherwise.
+   - A task is marked running and saved before any work starts, and what it
+     files carries its id. So a task left running when Byline closed is found
+     finished, or started again: never done twice.
+   - The same request is one task, however often it is woken.
+   - Before a model is asked: is the correspondent allowed to file or propose,
+     and is today's spending limit reached? Only a live model's tokens count.
+   - "reviewed by @x" queues a review of the finished work; a handoff is a task
+     for the colleague. Both are real calls, or a stated failure.
+   - Two windows of one masthead (?as=) share the queue; the Web Lock
+     byline-agent-<id> lets one window run a given correspondent at a time.
+   ========================================================================== */
+const TASK_STATES = ['queued', 'running', 'done', 'failed', 'cancelled'];
+const TASK_KEEP = 300;
+const RUNNING_TASK = new Map();               // agent id -> the task it is on, in this window
+const tasks = () => S.tasks || (S.tasks = []);
+const coordCfg = () => S.settings.coord || (S.settings.coord = { dailyTokens: 200000 });
+const dayOf = t => new Date(t).toDateString();
+const spentToday = () => tasks().filter(t => t.finishedAt && dayOf(t.finishedAt) === dayOf(now())).reduce((n, t) => n + (t.tokens || 0), 0);
+const activeTasks = () => (S && S.tasks ? S.tasks.filter(t => t.state === 'queued' || t.state === 'running').length : 0);
+function refreshTasks() {
+  if (UI.rpanel === 'tasks') renderRPanel();
+  const b = document.querySelector('[data-act="tasks"]'), n = activeTasks();
+  if (b) { b.className = n ? 'btn sm' : 'iconbtn'; b.textContent = '⚙' + (n ? ' ' + n : ''); }
+}
+function enqueueTask({ kind = 'answer', agentId, channelId, msgId, of = null, reviewer = null }) {
+  const key = [kind, agentId, msgId, of || ''].join('|');
+  const dup = tasks().find(t => t.key === key && t.state !== 'cancelled');
+  if (dup) return dup;
+  const t = { id: uid('task'), key, kind, agentId, channelId, msgId, of, reviewer, state: 'queued', at: now(), attempts: 0, tokens: 0 };
+  tasks().push(t);
+  while (S.tasks.length > TASK_KEEP) { const i = S.tasks.findIndex(x => x.state !== 'queued' && x.state !== 'running'); if (i < 0) break; S.tasks.splice(i, 1); }
+  save(); refreshTasks();
+  setTimeout(kickTasks, 0);
+  return t;
+}
+function outputOf(t) {
+  const line = (S.messages[t.channelId] || []).find(m => m.taskId === t.id && m.kind !== 'system');
+  if (line) return { kind: 'line', id: line.id, text: line.text, tokens: line.live ? (line.tokens || 0) : 0 };
+  const held = (S.proposals || []).find(p => p.taskId === t.id);
+  if (held) return { kind: 'held', id: held.id, text: held.text, tokens: held.live ? (held.tokens || 0) : 0 };
+  return null;
+}
+/* what the correspondent is asked: the request itself, or, for a review, the
+   request with the work it produced */
+function triggerOf(t) {
+  const req = (S.messages[t.channelId] || []).find(m => m.id === t.msgId);
+  if (!req) return null;
+  if (t.kind !== 'review') return req;
+  const work = tasks().find(x => x.id === t.of), out = work && outputOf(work);
+  const worker = work && S.people[work.agentId], rv = S.people[t.agentId];
+  if (!out || !worker || !rv) return null;
+  return { id: 'review_' + t.id, channelId: t.channelId, authorId: req.authorId, ts: now(), reactions: {}, noMemory: true, noRelay: true,
+    threadOf: out.kind === 'line' ? out.id : (req.threadOf || req.id),
+    text: `@${rv.handle} Review what ${worker.name} wrote in answer to this request:\n"${req.text}"\n\nWhat ${worker.name} wrote:\n\"\"\"\n${out.text}\n\"\"\"\n\nSay plainly whether it answers the request, what is wrong or missing, and what you would change. Do not rewrite it in full.` };
+}
+function kickTasks() {
+  if (!S || !S.tasks) return;
+  for (const t of tasks()) {
+    if (t.state !== 'queued') continue;
+    const a = S.people[t.agentId];
+    if (!a) { finishTask(t, 'failed', 'its correspondent is no longer on this masthead', null, true); continue; }
+    if (a.busy || RUNNING_TASK.has(a.id) || tasks().some(x => x.state === 'running' && x.agentId === a.id)) continue;
+    if (!reachable(a)) {
+      const w = a.offline ? 'it is off the desk' : 'this machine is asleep, and it runs here';
+      if (t.waiting !== w && chan(t.channelId)) postMessage({ channelId: t.channelId, authorId: S.meId, kind: 'system', text: `🌙 **${a.name}** is waiting: ${w}. Its request is queued.` });
+      t.waiting = w; continue;
+    }
+    if (spentToday() >= coordCfg().dailyTokens) { t.waiting = `today\u2019s spending limit is reached (${spentToday().toLocaleString()} of ${coordCfg().dailyTokens.toLocaleString()} tokens)`; continue; }
+    delete t.waiting;
+    startTask(t);
+  }
+  refreshTasks();
+}
+function finishTask(t, state, error, out, announce) {
+  t.state = state; t.finishedAt = now(); delete t.waiting;
+  if (error) t.error = String(error).slice(0, 300);
+  if (out) { t.out = { kind: out.kind, id: out.id }; t.tokens = out.tokens || 0; }
+  if (announce && error && chan(t.channelId)) postMessage({ channelId: t.channelId, authorId: S.meId, kind: 'system', text: `**${(S.people[t.agentId] || {}).name || 'A correspondent'}** did not take this on: ${error}.` });
+  logEvent('task.' + state, { task: t.id, kind: t.kind, correspondent: (S.people[t.agentId] || {}).name });
+  save(); refreshTasks();
+  if (state === 'done' && t.kind === 'answer' && t.reviewer) enqueueTask({ kind: 'review', agentId: t.reviewer, channelId: t.channelId, msgId: t.msgId, of: t.id });
+}
+function startTask(t) {
+  const a = S.people[t.agentId];
+  RUNNING_TASK.set(a.id, t.id);                // at once, so a second kick does not start it again
+  const run = async () => {
+    const already = outputOf(t);
+    if (already) return finishTask(t, 'done', null, already);     // another window finished it
+    const c = chan(t.channelId), trig = triggerOf(t);
+    if (!c || !trig) return finishTask(t, 'failed', 'what it was asked about is gone', null, true);
+    const eff = await effectiveScope(a);
+    if (eff.from === 'broken' || !(eff.scope.indexOf('desk:file') >= 0 || eff.scope.indexOf('desk:propose') >= 0))
+      return finishTask(t, 'failed', 'not permitted: ' + (eff.from === 'broken' ? 'its delegation no longer holds — ' + eff.why
+        : eff.from === 'credential' ? 'its credential grants neither filing nor proposing' : 'it is set to read only'), null, true);
+    if (t.state === 'cancelled') return;
+    t.state = 'running'; t.startedAt = now(); t.attempts = (t.attempts || 0) + 1; delete t.error;
+    save(); refreshTasks();                    // saved before any work starts
+    try { await runAgent(a, trig, c, t); } catch (e) { t.error = e.message || String(e); a.busy = false; }
+    if (t.state === 'cancelled') { t.finishedAt = t.finishedAt || now(); save(); refreshTasks(); return; }
+    const out = outputOf(t);
+    if (out) finishTask(t, 'done', null, out); else finishTask(t, 'failed', t.error || 'it filed nothing');
+  };
+  const go = async () => {
+    try {
+      if (navigator.locks && navigator.locks.request) {
+        await navigator.locks.request('byline-agent-' + a.id, { ifAvailable: true }, async lock => {
+          if (!lock) { t.waiting = 'another Byline window is running this correspondent'; return; }
+          await run();
+        });
+      } else await run();
+    } catch (e) { if (t.state === 'running') finishTask(t, 'failed', e.message || String(e)); }
+    finally { RUNNING_TASK.delete(a.id); setTimeout(kickTasks, 0); }
+  };
+  return go();
+}
+function cancelTask(id) {
+  const t = tasks().find(x => x.id === id);
+  if (!t || (t.state !== 'queued' && t.state !== 'running')) return;
+  const wasRunning = t.state === 'running';
+  t.state = 'cancelled'; t.finishedAt = now(); delete t.waiting;
+  logEvent('task.cancelled', { task: t.id });
+  save(); refreshTasks();
+  if (wasRunning) toast('Cancelled: whatever it is writing will not be filed');
+}
+function retryTask(id) {
+  const t = tasks().find(x => x.id === id); if (!t || t.state !== 'failed') return;
+  t.state = 'queued'; delete t.error; delete t.finishedAt;
+  save(); kickTasks();
+}
+/* At boot: a task still marked running was cut off when Byline closed, unless
+   another window holds it. If it had filed, it is finished; if not, it goes
+   back in the queue. Either way, nothing is done twice. */
+async function recoverTasks() {
+  let held = new Set();
+  try { if (navigator.locks && navigator.locks.query) held = new Set(((await navigator.locks.query()).held || []).map(l => l.name)); } catch (e) { }
+  for (const t of tasks()) {
+    if (t.state !== 'running' || RUNNING_TASK.has(t.agentId)) continue;
+    const out = outputOf(t);
+    if (out) { finishTask(t, 'done', null, out); continue; }
+    if (held.has('byline-agent-' + t.agentId)) continue;
+    t.state = 'queued'; t.recovered = (t.recovered || 0) + 1;
+    t.note = 'Byline closed while this was running; started again';
+  }
+  save(); kickTasks();
+}
+function paintTasks(p) {
+  const list = tasks().slice().reverse().slice(0, 60), cfg = coordCfg();
+  const label = { answer: 'answering', review: 'reviewing', handoff: 'handed over' };
+  p.innerHTML = `<div class="rhead">⚙ Work queue<span style="flex:1"></span><button class="iconbtn" data-x>✕</button></div>
+    <div class="rbody">
+      <div class="tiny mut" style="margin-bottom:8px">This runs while Byline is open, and not otherwise. Work cut off when it closes is picked up when you open it again; work already filed is never done twice.</div>
+      <div class="rowbox tiny" style="gap:6px;flex-wrap:wrap">Spent today <b>${spentToday().toLocaleString()}</b> of
+        <input class="i" id="tkBudget" type="number" min="0" step="1000" value="${esc(String(cfg.dailyTokens))}" style="width:110px;padding:3px 6px"> tokens</div>
+      ${list.length ? list.map(t => { const a = S.people[t.agentId] || {};
+        const col = t.state === 'done' ? 'var(--good)' : t.state === 'failed' ? 'var(--hot)' : t.state === 'running' ? 'var(--agent)' : 'var(--dim)';
+        return `<div class="rowbox" style="display:block;padding:8px 10px">
+          <div style="display:flex;align-items:center;gap:7px">${avatar(a, 'sm')}<b class="tiny">${esc(a.name || '?')}</b>
+            <span class="tiny dimt">${esc(label[t.kind] || t.kind)} · ${ago(t.at)}</span><span style="flex:1"></span>
+            <span class="pill" style="color:${col}">${esc(t.state)}</span></div>
+          ${t.waiting ? `<div class="tiny" style="color:var(--honey);margin-top:4px">waiting: ${esc(t.waiting)}</div>` : ''}
+          ${t.error ? `<div class="tiny" style="color:var(--hot);margin-top:4px">${esc(t.error)}</div>` : ''}
+          ${t.note ? `<div class="tiny dimt" style="margin-top:4px">${esc(t.note)}</div>` : ''}
+          <div class="tiny dimt" style="margin-top:4px">${t.attempts ? 'attempt ' + t.attempts + ' · ' : ''}${t.tokens ? t.tokens.toLocaleString() + ' tokens' : 'no model tokens'}${t.out ? ' · ' + (t.out.kind === 'held' ? 'held for your release' : 'filed') : ''}</div>
+          <div style="display:flex;gap:6px;margin-top:6px">
+            ${t.state === 'queued' || t.state === 'running' ? `<button class="btn sm ghost" data-task-cancel="${esc(t.id)}">Cancel</button>` : ''}
+            ${t.state === 'failed' ? `<button class="btn sm ghost" data-task-retry="${esc(t.id)}">Try again</button>` : ''}
+            ${t.out ? `<button class="btn sm ghost" data-task-open="${esc(t.id)}">Show</button>` : ''}</div>
+        </div>`; }).join('') : '<div class="empty tiny">Nothing asked yet.</div>'}
+    </div>`;
+  p.querySelector('[data-x]').onclick = () => { UI.rpanel = null; render(); };
+  const bud = p.querySelector('#tkBudget');
+  bud.onchange = () => { cfg.dailyTokens = Math.max(0, parseInt(bud.value, 10) || 0); save(); kickTasks(); };
+  p.querySelectorAll('[data-task-cancel]').forEach(b => b.onclick = () => cancelTask(b.dataset.taskCancel));
+  p.querySelectorAll('[data-task-retry]').forEach(b => b.onclick = () => retryTask(b.dataset.taskRetry));
+  p.querySelectorAll('[data-task-open]').forEach(b => b.onclick = () => {
+    const t = tasks().find(x => x.id === b.dataset.taskOpen); if (!t || !t.out) return;
+    UI.view = 'channel'; UI.channelId = t.channelId; render();
+    const line = (S.messages[t.channelId] || []).find(m => m.id === t.out.id);
+    if (line && line.threadOf) openThread(line.threadOf);
+    const el = document.querySelector(`[data-msg="${t.out.id}"]`); if (el) el.scrollIntoView({ block: 'center' });
+  });
 }
 
 function topicOf(text) {
@@ -6952,7 +7159,7 @@ function extractMemory(text) {
 const hostOf = a => (a.host === 'gateway' && S.settings.gateway.on) ? 'gateway' : 'local';
 const reachable = a => !a.offline && (hostOf(a) === 'gateway' || !S.settings.away);
 
-async function runAgent(agent, trigger, c) {
+async function runAgent(agent, trigger, c, task) {
   if (agent.offline) {
     postMessage({ channelId: c.id, authorId: S.meId, text: `**${agent.name}** is off the desk — restart it after the harness change.`, kind: 'system' });
     return paintMessages();
@@ -6967,7 +7174,9 @@ async function runAgent(agent, trigger, c) {
     return;
   }
   if (agent.busy) {
-    toast(`${agent.name} is mid-run — it'll pick this up next`);
+    /* It used to say "it'll pick this up next" and drop the request. */
+    enqueueTask({ agentId: agent.id, channelId: c.id, msgId: trigger.id });
+    toast(`${agent.name} is mid-run — queued, it takes this next`);
     return;
   }
   agent.busy = true; renderSidebar(); renderRail();
@@ -6978,7 +7187,7 @@ async function runAgent(agent, trigger, c) {
   const nMsgs = msgs(c.id).length;
 
   /* If it was told to hand this to someone else, it does that itself. */
-  if (c.kind !== 'dm' && await relayToPeer(agent, c, trigger)) {
+  if (c.kind !== 'dm' && !trigger.noRelay && await relayToPeer(agent, c, trigger)) {
     agent.busy = false; renderSidebar(); renderRail();
     await agentReply(agent, c, trigger.id, `Passed this to **${(/\b(?:ask|check with|hand (?:this|it) to|pass (?:this|it) to)\s+@?([a-z0-9_-]{2,20})\b/i.exec(trigger.text) || [])[1]}** — it's their beat. Their answer is in our DMs, on the record.`);
     return;
@@ -7029,8 +7238,13 @@ async function runAgent(agent, trigger, c) {
     delete LIVE[agent.id];
     agent.busy = false;
 
+    if (out && out.text && task && task.state === 'cancelled') {
+      postMessage({ channelId: c.id, authorId: S.meId, kind: 'system', text: `**${agent.name}** finished, but its task had been cancelled: nothing was filed.` });
+      renderSidebar(); renderRail(); if (UI.channelId === c.id) paintMessages(); save();
+      return;
+    }
     if (out && out.text) {
-      const mem2 = extractMemory(trigger.text);
+      const mem2 = trigger.noMemory ? null : extractMemory(trigger.text);
       if (mem2) { agent.memories = agent.memories || []; if (!agent.memories.includes(mem2)) agent.memories.unshift(mem2); }
       const acts2 = L.acts.concat([{ tool: lname, detail: `${out.tokens || '~'} tokens · ${viaHelper ? 'ran on this machine, through the local helper' : cfg.provider === 'claude' ? 'Claude API' : 'local · no API bill'}` }]);
       /* TM-011, and worse than it was rated. This path filed without asking
@@ -7071,12 +7285,13 @@ async function runAgent(agent, trigger, c) {
       return;
     }
     if (viaHelper) HELPER.status = 'last run failed: ' + failed; else cfg.status = 'error: ' + failed;
-    postMessage({ channelId: c.id, authorId: S.meId, kind: 'system', text: `⚠️ ${viaHelper ? esc(h.name) + ' did not answer' : 'Live model unreachable'} (${esc(failed || 'empty reply')}) — **${agent.name}** fell back to its written reply.` });
-    agent.busy = true;   // continue down the scripted path below
-    toolset = h.tools.slice();
-    if (role === 'chief') toolset.push(['delegate', 'pick owners + spin up a channel']);
-    LIVE[agent.id] = { agentId: agent.id, channelId: c.id, threadOf: trigger.threadOf, acts: [], tokens: 0, harness: h.id };
-    if (UI.channelId === c.id) paintMessages();
+    /* It used to fall back to a written reply here, so a desk could not tell a
+       model that answered from one that failed. The failure is the answer. */
+    if (task && !task.error) task.error = (viaHelper ? h.name + ' did not answer: ' : 'the live model did not answer: ') + (failed || 'empty reply');
+    postMessage({ channelId: c.id, authorId: S.meId, kind: 'system', text: `⚠️ ${viaHelper ? esc(h.name) + ' did not answer' : 'Live model unreachable'} (${esc(failed || 'empty reply')}) — **${agent.name}** filed nothing. No written reply stands in for a model that failed.` });
+    renderSidebar(); renderRail(); if (UI.channelId === c.id) paintMessages();
+    save();
+    return;
   }
 
   for (const [tool, det] of toolset) {
@@ -7093,7 +7308,7 @@ async function runAgent(agent, trigger, c) {
   delete LIVE[agent.id];
 
   // memory
-  const mem = extractMemory(trigger.text);
+  const mem = trigger.noMemory ? null : extractMemory(trigger.text);
   let memNote = '';
   if (mem) {
     agent.memories = agent.memories || [];
@@ -7109,6 +7324,12 @@ async function runAgent(agent, trigger, c) {
     logEvent('canvas.updated', { channel: c.id, version: c.canvas.v }, agent.id);
   }
 
+  if (task && task.state === 'cancelled') {
+    agent.busy = false;
+    postMessage({ channelId: c.id, authorId: S.meId, kind: 'system', text: `**${agent.name}** finished, but its task had been cancelled: nothing was filed.` });
+    renderSidebar(); renderRail(); if (UI.channelId === c.id) paintMessages(); save();
+    return;
+  }
   const text = composeReply(agent, role, trigger, c, topic) + memNote;
   /* The credential is the authority, not decoration — if it doesn't grant
      filing, the copy doesn't land, whatever the card says. */
@@ -7129,7 +7350,7 @@ async function runAgent(agent, trigger, c) {
     save(); return;
   }
   if (pol === 'always_ask') {
-    holdProposal(agent, c, text, { activity: acts, tokens, harness: h.id, threadOf: trigger.threadOf });
+    holdProposal(agent, c, text, { activity: acts, tokens, harness: h.id, threadOf: trigger.threadOf, scripted: true });
     agent.busy = false;
     renderSidebar(); renderRail(); if (UI.channelId === c.id) render();
     toast(`${agent.name} is waiting on you to release its copy`);
@@ -7139,6 +7360,7 @@ async function runAgent(agent, trigger, c) {
     channelId: c.id, authorId: agent.id, text,
     threadOf: trigger.threadOf || null, activity: acts, tokens, harness: h.id
   });
+  m.scripted = true;            // no model wrote this: a written reply, and it says so
 
   agent.busy = false;
   if (UI.channelId === c.id) { paintMessages(); if (UI.rpanel) renderRPanel(); }
@@ -8107,7 +8329,7 @@ function renderRPanel() {
   const p = $('#rpanel');
   if (!UI.rpanel) { p.style.display = 'none'; return; }
   p.style.display = 'flex';
-  ({ thread: paintThread, activity: paintActivity, members: paintMembers, huddle: paintHuddle }[UI.rpanel] || (() => { }))(p);
+  ({ thread: paintThread, activity: paintActivity, members: paintMembers, huddle: paintHuddle, tasks: paintTasks }[UI.rpanel] || (() => { }))(p);
 }
 function paintThread(p) {
   const c = chan(), root = msgs(c.id).find(m => m.id === UI.threadId);
@@ -8212,6 +8434,7 @@ async function setAway(v) {
     await runAgent(a, trig, c);
   }
   save();
+  kickTasks();
 }
 
 /* ---------- keys at rest ----------
@@ -9373,8 +9596,9 @@ async function relayToPeer(agent, c, trigger) {
   const dm = agentDM(agent, to, `${me().name} asked me about **${(trigger.text || '').slice(0, 90)}** — that's closer to your beat than mine. What have you got?`);
   if (!dm) return false;
   logEvent('agent.relayed', { from: agent.name, to: to.name }, agent.id);
-  await sleep(700);
-  agentDM(to, agent, composeReply(to, roleOf(to), trigger, c, topicOf(trigger.text || '')) .slice(0, 400));
+  /* The colleague is asked for real: a task of its own, answered by its own
+     model in this DM, or a stated failure. It used to answer from a script. */
+  enqueueTask({ kind: 'handoff', agentId: to.id, channelId: dm.channelId, msgId: dm.id });
   save();
   return true;
 }
@@ -10396,7 +10620,8 @@ async function runTests() {
     if (route) { const r = route(init || {}); return new Response(JSON.stringify(r.json), { status: r.status || 200 }); }
     if (/\/harnesses$/.test(url)) return new Response(JSON.stringify({ helper: 'byline-helper', research: false,
       harnesses: { 'claude-code': { installed: true, name: 'Claude Code', version: '2.1.76 (Claude Code)', tools: 'none' }, codex: { installed: false, name: 'Codex' } } }), { status: 200 });
-    return new Response(lines.map(l => JSON.stringify(l)).join(String.fromCharCode(10)) + String.fromCharCode(10), { status: 200 });
+    const ls = typeof lines === 'function' ? await lines(init || {}) : lines;
+    return new Response(ls.map(l => JSON.stringify(l)).join(String.fromCharCode(10)) + String.fromCharCode(10), { status: 200 });
   };
   const withHelper = async (lines, body, routes) => {
     const hc = HELPER_CFG(), was = JSON.stringify(hc), realFetch = window.fetch, seen = [];
@@ -10415,6 +10640,7 @@ async function runTests() {
       ag.busy = false;
       S.messages[desk.id] = msgs(desk.id).filter(m => !(m.ts >= tStart));
       S.proposals = (S.proposals || []).filter(p => !(p.ts >= tStart));
+      S.tasks = (S.tasks || []).filter(t => !(t.at >= tStart));
       save();
     }
   };
@@ -10479,7 +10705,7 @@ async function runTests() {
       const note = msgs(desk.id).find(m => m.kind === 'system' && m.ts >= t0 && /Claude Code/.test(m.text));
       ok(note, 'a system line names the harness that failed');
       ok(note && /said nothing/.test(note.text) && /\/login/.test(note.text), 'with the reason and the remedy: ' + (note ? note.text.slice(0, 140) : ''));
-      ok(msgs(desk.id).some(m => m.authorId === ag.id && m.ts >= t0 && !m.live), 'and the correspondent falls back to its written reply, not marked live');
+      ok(!msgs(desk.id).some(m => m.authorId === ag.id && m.ts >= t0), 'and nothing is filed in its place: no written reply stands in for an agent that failed');
     });
   });
 
@@ -10880,6 +11106,181 @@ async function runTests() {
       eq(citesSources(Object.assign({}, scout, { cites: true })), true, 'and told to, it does, and says when it could read nothing:');
     } finally { Object.keys(hc).forEach(k => delete hc[k]); Object.assign(hc, JSON.parse(was)); HELPER.harnesses = wasH; }
   });
+
+  /* ---- the coordinator ----
+     Every request to a correspondent is a task, kept with the masthead in this
+     browser and never sent to a peer. It is marked running and saved before
+     any work starts, and what it files carries its id, so a task left running
+     when Byline closed is either found finished or started again: never done
+     twice. It runs while Byline is open, and not otherwise. */
+  const settleTasks = async (ms = 8000) => {
+    const busy = () => tasks().some(x => x.state === 'running' || (x.state === 'queued' && !x.waiting));
+    for (const t0 = Date.now(); Date.now() - t0 < ms; await sleep2(30)) if (!busy()) { await sleep2(60); if (!busy()) return; }
+  };
+  const runOf = ls => [{ t: 'start', harness: 'claude-code', name: 'Claude Code', tools: 'none' }].concat(ls.map(text => ({ t: 'text', text })), [{ t: 'done', tokens: { in: 120, out: 30 }, ms: 400 }]);
+  const asked = (ag, rest) => { const m = postMessage({ channelId: desk.id, authorId: S.meId, text: '@' + ag.handle + ' ' + rest }); wakeAgents(m, desk); return m; };
+  const linesBy = (ag, t0) => msgs(desk.id).filter(x => x.authorId === ag.id && x.ts >= t0 && x.kind !== 'system');
+
+  await t('Coordinator', 'a busy correspondent queues work instead of dropping it', async () => {
+    await withHelper(runOf(['Done.']), async ({ ag, seen }) => {
+      ag.policy = 'always_allow';
+      const t0 = now();
+      ag.busy = true;
+      const a = asked(ag, 'first thing'), b = asked(ag, 'second thing');
+      await sleep2(80);
+      eq(tasks().filter(x => x.agentId === ag.id && x.at >= t0 && x.state === 'queued').length, 2, 'both requests are queued while it is busy:');
+      eq(seen.filter(x => /\/run$/.test(x.url)).length, 0, 'and nothing has run:');
+      ag.busy = false; kickTasks(); await settleTasks();
+      const done = tasks().filter(x => x.agentId === ag.id && x.at >= t0);
+      eq(done.map(x => x.state).join(), 'done,done', 'then both are done, in order:');
+      eq(linesBy(ag, t0).map(x => x.taskId).join(), done.map(x => x.id).join(), 'each filed line carries the task it answers:');
+      ok(done[0].msgId === a.id && done[1].msgId === b.id, 'each task is the request it came from');
+    });
+  });
+  await t('Coordinator', 'the same request is never taken twice', async () => {
+    await withHelper(runOf(['Once.']), async ({ ag, seen }) => {
+      ag.policy = 'always_allow';
+      const t0 = now(), m = asked(ag, 'just once');
+      wakeAgents(m, desk); wakeAgents(m, desk);
+      eq(tasks().filter(x => x.msgId === m.id).length, 1, 'woken three times, one task:');
+      await settleTasks();
+      wakeAgents(m, desk); await settleTasks();
+      eq(linesBy(ag, t0).length, 1, 'and one answer, even woken again after it was done:');
+      eq(seen.filter(x => /\/run$/.test(x.url)).length, 1, 'from one run:');
+    });
+  });
+  await t('Coordinator', 'a task left running when Byline closed is finished once, not twice', async () => {
+    await withHelper(runOf(['Picked up again.']), async ({ ag, seen }) => {
+      ag.policy = 'always_allow';
+      const t0 = now();
+      const m1 = postMessage({ channelId: desk.id, authorId: S.meId, text: '@' + ag.handle + ' interrupted mid-run' });
+      const t1 = enqueueTask({ agentId: ag.id, channelId: desk.id, msgId: m1.id });
+      t1.state = 'running'; t1.startedAt = now(); t1.attempts = 1;          // as saved, then the window closed
+      const m2 = postMessage({ channelId: desk.id, authorId: S.meId, text: '@' + ag.handle + ' interrupted after filing' });
+      const t2 = enqueueTask({ agentId: ag.id, channelId: desk.id, msgId: m2.id });
+      t2.state = 'running'; t2.startedAt = now(); t2.attempts = 1;
+      const filed = postMessage({ channelId: desk.id, authorId: ag.id, text: 'Filed just before the window closed.', taskId: t2.id });
+      /* and one another window had finished while this one still had it queued */
+      const m3 = postMessage({ channelId: desk.id, authorId: S.meId, text: '@' + ag.handle + ' finished elsewhere' });
+      const t3 = enqueueTask({ agentId: ag.id, channelId: desk.id, msgId: m3.id });
+      postMessage({ channelId: desk.id, authorId: ag.id, text: 'Filed by the other window.', taskId: t3.id });
+      await recoverTasks();
+      eq(t2.state, 'done', 'a task that had filed is found finished at once, not queued again:');
+      ok(!t2.note, 'and is not described as started again');
+      await settleTasks();
+      eq(t3.state, 'done', 'a queued task another window finished is closed without running:');
+      eq(t2.state, 'done', 'a task that had filed is found finished:');
+      eq(t2.out && t2.out.id, filed.id, 'by what it filed:');
+      eq(t1.state, 'done', 'a task that had not is started again and finished:');
+      eq(linesBy(ag, t0).length, 3, 'three requests, three answers, nothing twice:');
+      eq(seen.filter(x => /\/run$/.test(x.url)).length, 1, 'and only the unfinished one ran:');
+      ok(/started again/.test(t1.note || ''), 'it says it was started again: ' + t1.note);
+    });
+  });
+  await t('Coordinator', 'it checks what a correspondent may do before it asks the model', async () => {
+    await withHelper(runOf(['Should never be asked.']), async ({ ag, seen }) => {
+      ag.policy = 'read_only';
+      const t0 = now(); asked(ag, 'anything'); await settleTasks();
+      const t = tasks().find(x => x.agentId === ag.id && x.at >= t0);
+      eq(t && t.state, 'failed', 'set to read only, the task is refused:');
+      ok(/not permitted/.test(t.error || ''), 'and says why: ' + (t && t.error));
+      eq(seen.filter(x => /\/run$/.test(x.url)).length, 0, 'before any model was asked:');
+      ok(msgs(desk.id).some(m => m.kind === 'system' && m.ts >= t0 && /did not take this on/.test(m.text)), 'and the desk is told');
+    });
+  });
+  await t('Coordinator', 'it stops at the day\u2019s spending limit, and goes on when it is raised', async () => {
+    const cfg = coordCfg(), was = cfg.dailyTokens;
+    await withHelper(runOf(['Within budget.']), async ({ ag, seen }) => {
+      ag.policy = 'always_allow';
+      const spentBefore = spentToday();
+      cfg.dailyTokens = spentBefore;                       // already reached
+      const t0 = now(); asked(ag, 'costly'); await settleTasks();
+      const t = tasks().find(x => x.agentId === ag.id && x.at >= t0);
+      ok(t && t.state === 'queued' && /spending limit/.test(t.waiting || ''), 'at the limit, it waits and says why: ' + (t && t.waiting));
+      eq(seen.filter(x => /\/run$/.test(x.url)).length, 0, 'and asks no model:');
+      cfg.dailyTokens = spentBefore + 100000; kickTasks(); await settleTasks();
+      eq(t.state, 'done', 'with room again, it runs:');
+      eq(t.tokens, 150, 'and what it spent is counted:');
+      eq(spentToday(), spentBefore + 150, 'towards today:');
+    });
+    cfg.dailyTokens = was;
+  });
+  await t('Coordinator', 'a cancelled task files nothing', async () => {
+    let release; const gate = new Promise(r => { release = r; });
+    await withHelper(async () => { await gate; return runOf(['Too late.']); }, async ({ ag }) => {
+      ag.policy = 'always_allow';
+      const t0 = now();
+      ag.busy = true; asked(ag, 'never mind this one'); await sleep2(50);
+      const q = tasks().find(x => x.agentId === ag.id && x.at >= t0);
+      cancelTask(q.id); ag.busy = false; kickTasks(); await sleep2(150);
+      eq(q.state, 'cancelled', 'a queued task cancelled never starts:');
+      asked(ag, 'and not this one either'); await sleep2(200);
+      const r = tasks().find(x => x.agentId === ag.id && x.at >= t0 && x.id !== q.id);
+      eq(r && r.state, 'running', 'this one is under way:');
+      cancelTask(r.id); release(); await settleTasks(); await sleep2(100);
+      eq(r.state, 'cancelled', 'cancelled mid-run, it stays cancelled:');
+      eq(linesBy(ag, t0).length, 0, 'and nothing it wrote is filed:');
+    });
+  });
+  await t('Coordinator', 'one correspondent does the work and another reviews it', async () => {
+    const scoutWas = { harness: scout.harness, policy: scout.policy, busy: scout.busy };
+    await withHelper(init => { const p = JSON.parse(init.body || '{}').prompt || '';
+      return runOf([/Review what/.test(p) ? 'It answers the request. One fix: say which library.' : 'The library opens 1pm to 5pm on Sundays.']); }, async ({ ag, seen }) => {
+      ag.policy = 'always_allow';
+      scout.harness = 'claude-code'; scout.policy = 'always_allow'; delete scout.delegation; scout.busy = false;
+      if (!desk.members.includes(scout.id)) desk.members.push(scout.id);
+      const t0 = now();
+      asked(ag, 'two lines on the library\u2019s Sunday hours, reviewed by @' + scout.handle);
+      await settleTasks();
+      const mine = tasks().filter(x => x.at >= t0);
+      eq(mine.map(x => x.kind + ':' + (x.agentId === ag.id ? 'worker' : x.agentId === scout.id ? 'reviewer' : '?') + ':' + x.state).join(' '), 'answer:worker:done review:reviewer:done',
+        'one task to do it, then one to review it:');
+      const work = linesBy(ag, t0)[0], review = linesBy(scout, t0)[0];
+      ok(work && /1pm to 5pm/.test(work.text), 'the work is filed');
+      ok(review && /One fix/.test(review.text), 'the review is filed');
+      eq(review && review.threadOf, work && work.id, 'as a reply to the work:');
+      const reviewRun = seen.filter(x => /\/run$/.test(x.url)).map(x => JSON.parse(x.init.body).prompt).find(p => /Review what/.test(p));
+      ok(reviewRun && reviewRun.indexOf('1pm to 5pm') >= 0, 'the reviewer was shown the actual work');
+      eq(tasks().filter(x => x.at >= t0 && x.agentId === scout.id && x.kind === 'answer').length, 0, 'and was not asked to write it too:');
+    });
+    Object.assign(scout, scoutWas); if (scoutWas.busy == null) delete scout.busy;
+  });
+  await t('Coordinator', 'handing over to another correspondent asks it for real', async () => {
+    const scoutWas = { harness: scout.harness, policy: scout.policy };
+    await withHelper(init => { const p = JSON.parse(init.body || '{}').prompt || '';
+      return runOf([/closer to your beat/.test(p) ? 'High tide is at 06:12 and 18:40.' : 'unused']); }, async ({ ag, seen }) => {
+      ag.policy = 'always_allow';
+      scout.harness = 'claude-code'; scout.policy = 'always_allow'; delete scout.delegation; scout.busy = false;
+      const t0 = now(), hadDM = !!dmBetween(ag.id, scout.id);
+      asked(ag, 'ask @' + scout.handle + ' about the tide times');
+      await settleTasks();
+      const dm = dmBetween(ag.id, scout.id);
+      const answer = dm && msgs(dm.id).find(x => x.authorId === scout.id && x.ts >= t0);
+      ok(answer && /06:12/.test(answer.text), 'the colleague\u2019s answer is what the model said, not a script: ' + (answer && answer.text.slice(0, 60)));
+      ok(seen.some(x => /\/run$/.test(x.url) && /closer to your beat/.test(JSON.parse(x.init.body).prompt)), 'because it was really asked');
+      ok(tasks().some(x => x.at >= t0 && x.kind === 'handoff' && x.agentId === scout.id && x.state === 'done'), 'as a task of its own');
+      if (dm) S.messages[dm.id] = msgs(dm.id).filter(x => !(x.ts >= t0));
+      if (dm && !hadDM) { S.channels = S.channels.filter(x => x.id !== dm.id); delete S.messages[dm.id]; }   // leave the masthead as we found it
+    });
+    Object.assign(scout, scoutWas);
+  });
+  await t('Coordinator', 'with no model connected, a written reply says it is one', async () => {
+    const live = LIVE_CFG(), wasOn = live.on, hc = HELPER_CFG(), wasH = hc.on;
+    live.on = false; hc.on = false; delete nib.busy;
+    try {
+      const t0 = now();
+      await runAgent(nib, postMessage({ channelId: desk.id, authorId: S.meId, text: '@nib a line please' }), desk);
+      const m = linesBy(nib, t0)[0] || (S.proposals || []).find(p => p.ts >= t0 && p.authorId === nib.id);
+      ok(m && m.scripted, 'the reply is marked as written, not generated');
+      if (m && m.channelId && !m.v0) { const div = document.createElement('div'); div.innerHTML = msgHTML(m, false); ok(/scripted/.test(div.textContent), 'and says so on the desk'); }
+    } finally { live.on = wasOn; hc.on = wasH; }
+  });
+  await t('Coordinator', 'the work queue stays on this machine', async () => {
+    ok(!('tasks' in publicState()), 'a peer is never sent the queue');
+    const st = hydrate({ tasks: [{ id: 'task_ok', agentId: nib.id, channelId: desk.id, msgId: 'm_x', kind: 'answer', state: 'queued', at: 1, attempts: 0, tokens: 0, key: 'k' },
+      { id: '<b>', agentId: nib.id, channelId: desk.id, state: 'queued' }, { id: 'task_bad_state', agentId: nib.id, channelId: desk.id, msgId: 'm_x', state: 'exploded' }, 'nope'] }, false);
+    eq(st.tasks.map(x => x.id).join(), 'task_ok', 'and a malformed task is dropped when the masthead is read:');
+  });
   await t('Local helper', 'the helper\u2019s token is kept under the same lock as the keys', async () => {
     const hc = HELPER_CFG(), was = hc.token, pass = 'helper lock ' + now();
     const stash = Object.values(S.people).map(p => [p, p.jwk, p.nextJwk]);
@@ -10896,7 +11297,7 @@ async function runTests() {
       hc.token = was; delete hc.tokenEnc; save();
     }
   });
-  await t('Live model', 'an unreachable endpoint falls back to written copy', async () => {
+  await t('Live model', 'an unreachable endpoint is reported, not replaced by written copy', async () => {
     const realFetch = window.fetch;
     window.fetch = () => Promise.reject(new Error('Failed to fetch'));
     try {
@@ -10906,10 +11307,31 @@ async function runTests() {
       nib.host = 'local'; delete nib.busy;
       await runAgent(nib, trig, desk);
       const after = (S.messages[desk.id] || []).filter(m => m.authorId === nib.id).length;
-      ok(after > before, 'a written reply still files');
+      eq(after, before, 'nothing files in its place — no written reply stands in for a model that failed:');
       ok(!nib.busy, 'busy is released');
       ok((S.messages[desk.id] || []).some(m => m.kind === 'system' && /unreachable/.test(m.text)), 'the failure is stated, not hidden');
     } finally { window.fetch = realFetch; S.settings.live.on = false; }
+  });
+
+  await t('Live model', 'a model that refuses says why, in its own words', async () => {
+    const realFetch = window.fetch, live = LIVE_CFG(), was = JSON.stringify(live);
+    const said = 'model requires more system memory (9.7 GiB) than is available (8.8 GiB)';
+    window.fetch = async () => new Response(JSON.stringify({ error: said }), { status: 500, headers: { 'content-type': 'application/json' } });
+    try {
+      Object.assign(live, { on: true, provider: 'ollama', url: 'http://localhost:11434', model: 'llama3.1:latest', models: ['llama3.1:latest'], status: 'ok' });
+      nib.host = 'local'; delete nib.busy;
+      const t0 = now();
+      await runAgent(nib, postMessage({ channelId: desk.id, authorId: meP.id, text: '@nib one line' }), desk);
+      const note = msgs(desk.id).find(m => m.kind === 'system' && m.ts >= t0 && /filed nothing/.test(m.text));
+      ok(note && note.text.indexOf('requires more system memory') >= 0, 'the desk is told the model\u2019s own reason, not just a status code: ' + (note && note.text.slice(0, 120)));
+      let calls = 0;
+      window.fetch = async () => { calls++; return new Response(JSON.stringify({ error: said }) + String.fromCharCode(10), { status: 200 }); };
+      const t1 = now();
+      await runAgent(nib, postMessage({ channelId: desk.id, authorId: meP.id, text: '@nib again' }), desk);
+      const note2 = msgs(desk.id).find(m => m.kind === 'system' && m.ts >= t1 && /filed nothing/.test(m.text));
+      ok(note2 && note2.text.indexOf('requires more system memory') >= 0, 'and so is one that refuses inside the stream: ' + (note2 && note2.text.slice(0, 120)));
+      eq(calls, 1, 'at the first asking, without a retry that could only be refused again:');
+    } finally { window.fetch = realFetch; Object.keys(live).forEach(k => delete live[k]); Object.assign(live, JSON.parse(was)); }
   });
 
   /* ---- desks, galley, memory ---- */
@@ -14318,6 +14740,8 @@ function boot() {
       setTimeout(() => toast('This masthead named a byline that is no longer here — reading as ' + who.name), 400);
     }
     initSync();
+    recoverTasks();                                                  // work cut off when Byline closed
+    if (!TESTING) setInterval(() => { if (S && S.tasks && S.tasks.some(t => t.state === 'queued')) kickTasks(); }, 15000);
     if (!TESTING) { const adv = lockAdvice(location.protocol); if (adv.offer) setTimeout(() => offerLock(adv), 1800); }
     if (!TESTING && HELPER_CFG().on) helperCheck().then(() => render());
     backfillDids().then(async ok => {                            // pre-did:key workspaces get identifiers

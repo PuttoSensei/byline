@@ -1428,3 +1428,51 @@ history against whoever holds a correspondent's key, are now in the README and
 the threat model.
 
 219 tests.
+
+### The thirty-fourth pass: a coordinator, so asking a correspondent is never a gamble
+
+Two things in Byline promised work and did not do it. A busy correspondent
+told you "it'll pick this up next" and dropped the request. A correspondent
+asked to "ask @someone" got its colleague's answer from a script, even with a
+live model connected. A model that failed was quietly replaced by a written
+reply, with token counts made up by `Math.random()`.
+
+Now every request is a task: queued, running, done, failed or cancelled. The
+queue is kept with the masthead in this browser and never sent to a peer. It
+runs while Byline is open, and not otherwise.
+
+- A task is marked running and saved before any work starts, and what it
+  files carries its id. A task left running when Byline closed is found
+  finished, or started again: never done twice.
+- The same request is one task however often it is woken. Two windows of one
+  masthead take turns on a correspondent through a Web Lock.
+- Before a model is asked, the coordinator checks whether the correspondent
+  may file or propose at all, and whether today's spending limit is reached.
+  Only a live model's tokens count.
+- "reviewed by @x" sends the finished work to a second correspondent, who is
+  shown it and replies in its thread. A handoff is a real task for the
+  colleague.
+- A model that fails is the answer: nothing is filed in its place. With no
+  model connected, a written reply is marked "scripted".
+
+A work queue panel shows each task, what it spent, and why it waits or
+failed, with cancel and try again.
+
+Eleven tests were written to fail first, and fourteen mutants run against
+them. One mutant survived, the same lesson as the audit's: recovery checked
+for filed work, and so did the start of every task, so removing the first
+check changed nothing a test could see. Each layer has its own test now. The
+full run found one test of mine that left a DM desk behind.
+
+The proof with a real model got halfway, and that half taught the most.
+Byline was reloaded mid-task, the task was found cut off, and it started
+again. But Ollama could not load llama3.1: it needed 9.7 GiB and 8.8 were
+free. Byline's task then sat "running" in the proof for ten minutes. That was
+the proof script's own wait: it expected a review that a failed task never
+asks for. Fixing it showed what the desk actually said: "Live model
+unreachable (HTTP 500)". Ollama had been reached, and had said exactly why it
+refused. It now passes the model's own reason through, from an error status
+or from inside the stream.
+
+**Not yet seen:** a real model doing the work and another reviewing it,
+end to end. On this machine that waits on a model that fits in memory.
