@@ -57,10 +57,13 @@ jobs:
           ls -la "$B/macos" "$B/dmg"
           /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Contents/Info.plist"
           BIN="$APP/Contents/MacOS/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP/Contents/Info.plist")"
-          lipo -archs "$BIN" | tee /dev/stderr | grep -q 'x86_64' && lipo -archs "$BIN" | grep -q 'arm64'
+          ARCHS=$(lipo -archs "$BIN"); echo "$ARCHS"
+          echo "$ARCHS" | grep -q x86_64 && echo "$ARCHS" | grep -q arm64
           codesign --verify --deep --strict --verbose=2 "$APP"
           # Apple silicon kills an unsigned arm64 app at launch; ad-hoc is the least it needs.
-          codesign -dv "$APP" 2>&1 | tee /dev/stderr | grep -q 'Signature=adhoc'
+          # captured first: grep -q stops reading at a match, and tee then dies of a broken pipe
+          SIG=$(codesign -dv "$APP" 2>&1); echo "$SIG"
+          echo "$SIG" | grep -q 'Signature=adhoc'
           hdiutil verify "$B"/dmg/*.dmg
           echo "BIN=$BIN" >> "$GITHUB_ENV"
       - name: Launch it, and photograph the window
