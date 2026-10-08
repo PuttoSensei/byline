@@ -1386,3 +1386,45 @@ continues a run hid its "edited by", and a space both versions happened to
 share split "seven to two" → "seven-to-two council" into two odd changes.
 
 214 tests.
+
+### The thirty-third pass: the audit of 9 October
+
+An audit of the two passes above, before either was pushed, with every
+suspicion tried as an attack in a real browser rather than argued.
+
+Two attacks worked, and both came from one choice. A line was allowed to be
+signed by whoever settled its edit, as long as it carried a history. But held
+copy is in the shared record, so a peer holds the correspondent's signed draft.
+And anyone who has taken a suggestion has a signed first version in
+circulation. From those, a peer could assemble a valid history, sign the line,
+and publish a correspondent's held copy without anyone releasing it. Or it
+could put words under your byline. Both verified as genuine. Now a line is
+signed by its author's key, always. The editor's part is in the history,
+under the editor's key. Held copy is released where the correspondent's key
+is held, which signs it as before.
+
+The first fix passed every test and still left a mutant alive. The door now
+strips the claim of who settled a line, so the check that ignores it was
+never reached. Each layer has its own test now: a line planted straight into
+memory is held to its author's key too.
+
+Three smaller things. An author's own edit to a line with a history now adds
+a signed version; before, an honest edit read as forged. A peer could leave
+any number of suggestions in your browser's small storage; now one waits per
+person per line. And a research beat cited by default even with no helper to
+read for it, so with a live model it was told to state nothing it would need a
+source for. Now it cites by default only when the helper is connected. The
+helper also answers the desktop app's own origins, which it had refused, so
+nothing that needs the helper worked in the desktop app.
+
+Fixing the gate turned up one more. `verify-rdfc.mjs` checks a credential
+Byline issued with its 30-day validity, against today's date. It began failing
+the day that ran out, and its tamper check had gone on passing because the
+credential had expired, not because it had been tampered with. It now
+verifies as of a minute after issue.
+
+The privacy of a citing correspondent's reading, and the limits of an edit
+history against whoever holds a correspondent's key, are now in the README and
+the threat model.
+
+219 tests.

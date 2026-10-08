@@ -36,8 +36,9 @@
 
      BYLINE_HELPER_TOKEN=secret      your own token instead of a made one
      BYLINE_HELPER_ORIGINS=a,b       pages allowed to ask (scheme://host[:port]);
-                                     default: https://puttosensei.github.io and
-                                     any http://127.0.0.1 or http://localhost port
+                                     default: https://puttosensei.github.io, the
+                                     Byline desktop app, and any http://127.0.0.1
+                                     or http://localhost port
      BYLINE_HELPER_TOOLS=research    let Claude Code search and fetch the web.
                                      Off by default: an agent that reads a desk
                                      can be steered by what is written on it, and
@@ -91,11 +92,15 @@ const authorised = req => {
 const NAMED = (process.env.BYLINE_HELPER_ORIGINS || 'https://puttosensei.github.io')
   .split(',').map(x => x.trim().replace(/\/+$/, '').toLowerCase()).filter(Boolean);
 const LOOPBACK_PAGES = !process.env.BYLINE_HELPER_ORIGINS;
+/* The desktop app's own origins (WebView2 on Windows; WKWebView and WebKitGTK
+   elsewhere). No web page can claim them; any Tauri app on this machine shares
+   them, which is why the token is what actually lets a page in. */
+const DESKTOP_APP = ['http://tauri.localhost', 'tauri://localhost'];
 function originAllowed(origin) {
   const o = String(origin || '').toLowerCase();
   if (!o || o === 'null') return false;                   // no origin, or a file:// page
   if (NAMED.indexOf(o) >= 0) return true;
-  return LOOPBACK_PAGES && /^http:\/\/(127\.0\.0\.1|localhost)(:\d{1,5})?$/.test(o);
+  return LOOPBACK_PAGES && (DESKTOP_APP.indexOf(o) >= 0 || /^http:\/\/(127\.0\.0\.1|localhost)(:\d{1,5})?$/.test(o));
 }
 const hostOk = req => ['127.0.0.1:' + PORT, 'localhost:' + PORT].indexOf(String(req.headers.host || '').toLowerCase()) >= 0;
 
@@ -341,7 +346,7 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, '127.0.0.1', () => {
   console.log('byline helper on http://127.0.0.1:' + PORT);
   console.log('  ' + (TOKEN_FROM_ENV ? 'token: set by BYLINE_HELPER_TOKEN' : 'token: ' + TOKEN + '   (made here; paste it into Byline → Settings → Local helper)'));
-  console.log('  answers pages from: ' + NAMED.join(', ') + (LOOPBACK_PAGES ? ', and any http://127.0.0.1 or http://localhost port' : ''));
+  console.log('  answers pages from: ' + NAMED.join(', ') + (LOOPBACK_PAGES ? ', the Byline desktop app, and any http://127.0.0.1 or http://localhost port' : ''));
   for (const [id, h] of Object.entries(HARNESSES)) { const b = h.bin(); console.log('  ' + id.padEnd(12) + (b ? b.shown + '   tools: ' + h.tools : 'not installed')); }
   if (RESEARCH) console.log('  RESEARCH IS ON: Claude Code may search and fetch the web. Desk text can steer it.');
   console.log('  sources: reads public web pages for citing correspondents; search ' + (BRAVE_KEY ? 'on (Brave)' : 'off (no BYLINE_HELPER_BRAVE_KEY)'));

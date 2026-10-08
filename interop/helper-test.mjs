@@ -150,6 +150,12 @@ try {
   ok(r.status === 401, 'reading sources needs the token like everything else (' + r.status + ')');
   r = await call('POST', '/sources', { body: { urls: [page] }, origin: 'https://evil.example' });
   ok(r.status === 403, 'and a page it was not told to answer is refused (' + r.status + ')');
+  for (const o of ['http://tauri.localhost', 'tauri://localhost']) {
+    r = await call('GET', '/harnesses', { origin: o });
+    ok(r.status === 200, 'the Byline desktop app (' + o + ') is answered by default (' + r.status + ')');
+  }
+  r = await call('GET', '/harnesses', { origin: 'http://tauri.localhost.evil.example' });
+  ok(r.status === 403, 'and a name that only starts like it is not (' + r.status + ')');
   r = await call('POST', '/sources', { body: { urls: [page, 'http://169.254.169.254/latest/meta-data/', 'file:///etc/passwd'] } });
   ok(r.status === 200 && r.json.sources.length === 0, 'a page cannot use it to read this machine: loopback and metadata addresses give no source');
   ok(r.json.dropped.length === 2 && r.json.dropped.every(x => /private or reserved/.test(x.why)), 'each is dropped with the reason, and file: never even gets that far: ' + r.json.dropped.map(x => x.why).join('; '));

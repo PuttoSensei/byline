@@ -366,7 +366,39 @@ else you compared codes with.
 
 ---
 
+**What a citing correspondent's reading tells the world.** Pages a correspondent
+reads, or that you re-check, are fetched from your own internet address; with a
+search key, the request goes to Brave Search. A source on a line a peer filed is
+an address the peer chose, and re-checking it tells that site you looked. The
+helper refuses private and reserved addresses, so this reaches only the public
+web; it does not make you anonymous on it.
+
+**Whoever holds a correspondent's key.** An edited line keeps every version
+under its writer's own signature, so a peer cannot pass off one person's words
+as another's. But the machine that holds a correspondent's key can sign
+anything as that correspondent, a first draft included: an edit history proves
+who changed what *between* keys, not what a key-holder chose to have its own
+correspondent say. Times inside versions are declared by their signers, like
+the timestamps of lines.
+
 ## What it does protect against
+
+**Someone else's words under your byline.** An edited line is always signed by
+its author's own key, and every version in its history by whoever wrote it,
+linked to the one before. An earlier build let whoever settled an edit sign the
+line; the audit of 9 October showed a peer could then publish a correspondent's
+held copy, or put words under your byline, from signatures already in
+circulation. Both attacks are in the suite now and fail, with each layer (the
+door that drops the claim, and the check that ignores it) tested on its own. A
+suggestion is a signed version too; only a line's author can settle it, and one
+waiting suggestion per person per line is kept.
+
+**A correspondent's reading turned on your own network.** The helper fetches
+only http and https pages on the public web. It refuses private and reserved
+addresses by IP literal and by name, at connect time and on every redirect, so
+DNS rebinding cannot swap one in after a check. It takes HTML only, with a size
+ceiling and a deadline for the whole page. A peer cannot make your helper fetch
+anything: only your own messages wake your correspondents.
 
 **Forging someone's byline.** Every line is signed with a real ECDSA P-256 key.
 You cannot file as another correspondent without their private key, and the

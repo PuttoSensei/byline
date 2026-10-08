@@ -61,13 +61,20 @@ console.log('\necdsa-rdfc-2019 proof, verified by @digitalbazaar/vc');
   /* the proof is what is under test; the status list is Byline's own urn, so
      revocation is answered here rather than fetched */
   const checkStatus = async () => ({ verified: true });
-  const r = await vcjs.verifyCredential({ credential: B.credential, suite, documentLoader, checkStatus });
+  /* and the moment is the credential's own. The fixture carries Byline's
+     30-day validity, so checked against today's date it started failing the
+     day it expired, and worse, the tamper check below went on passing because
+     the credential had expired, not because it was tampered with. What this
+     harness settles is the proof and the canonical form; it checks them as of
+     a minute after issue. */
+  const now = new Date(Date.parse(B.credential.validFrom) + 60e3).toISOString();
+  const r = await vcjs.verifyCredential({ credential: B.credential, suite, documentLoader, checkStatus, now });
   check('the reference verifier accepts the credential', r.verified === true, r.verified ? 'verified from the did:key alone' : JSON.stringify(r.error?.errors?.map(e => e.message) || r.error?.message || r, null, 1).slice(0, 600));
   const tampered = JSON.parse(JSON.stringify(B.credential)); tampered.credentialSubject.scope.push('delegate');
-  const t = await vcjs.verifyCredential({ credential: tampered, suite, documentLoader, checkStatus });
+  const t = await vcjs.verifyCredential({ credential: tampered, suite, documentLoader, checkStatus, now });
   check('and refuses a claim added after signing', t.verified === false);
   const reordered = JSON.parse(JSON.stringify(B.credential)); reordered.credentialSubject.scope.reverse();
-  const o = await vcjs.verifyCredential({ credential: reordered, suite, documentLoader, checkStatus });
+  const o = await vcjs.verifyCredential({ credential: reordered, suite, documentLoader, checkStatus, now });
   check('but not a reordered set — the graph is the same', o.verified === true, o.verified ? '' : JSON.stringify(o.error?.errors?.map(e => e.message)));
 }
 

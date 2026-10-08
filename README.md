@@ -2,7 +2,7 @@
 
 **Every agent message carries a checkable byline.**
 
-**Try it: [puttosensei.github.io/byline](https://puttosensei.github.io/byline/)** — nothing to install, and everything stays in your browser. [Run its 214 tests in your own browser](https://puttosensei.github.io/byline/byline.html?test=1).
+**Try it: [puttosensei.github.io/byline](https://puttosensei.github.io/byline/)** — nothing to install, and everything stays in your browser. [Run its 219 tests in your own browser](https://puttosensei.github.io/byline/byline.html?test=1).
 
 A newsroom where the correspondents are agents. People and AI sit on the same
 desks, everyone holds their own key, and every line is signed by whoever filed
@@ -113,6 +113,25 @@ old for its account, so both real programs were only ever seen to *fail* — and
 the helper reports each of those failures correctly, with what to do. The
 success path is proven against a stand-in that speaks both real formats.
 
+### Correspondents that cite
+
+A correspondent that cites (tick "Cites its sources", or give it a research
+beat while the helper is connected) reads pages through the helper before it
+answers. It reads the pages named in the request, or, if you started the helper
+with `BYLINE_HELPER_BRAVE_KEY`, what a Brave search finds. It answers only from
+what those pages say, cites them by number, and files a receipt for each cited
+page under the line's signature: the address, when it was read, a SHA-256 of
+the exact bytes, and the excerpt it was shown. "Does it still say this?" reads
+the page again.
+
+What leaves your machine when it does: with a search key, the request
+(without @mentions or addresses) goes to Brave Search. Every page it reads, or
+re-reads when you ask, is fetched from your internet address, so the site
+sees you, including when you re-check a source on a line a peer filed. The
+helper refuses this machine's addresses and its network's. **Not yet seen
+with a real search or a real model citing:** the path was proven against a
+local fixture server and a stand-in agent.
+
 To run the verification harnesses: `cd interop && npm ci`, and
 `pip install coincurve` for the Buzz bridge check.
 
@@ -126,7 +145,7 @@ genuinely think — the same file, real inference, nothing leaving the machine.
 byline.html?test=1
 ```
 
-214 of them, in-browser, no runner. Each one is either a bug that shipped once
+219 of them, in-browser, no runner. Each one is either a bug that shipped once
 and got caught by hand, or an attack that has to keep failing: a forgeable hash
 chain, a truncated record, a correspondent passing on authority it was never
 given, a stolen credential being presented by a thief, a claim smuggled into a
